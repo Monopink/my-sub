@@ -1,7 +1,9 @@
 # NAME: Proxy Provider Block
 
-HOST-SUFFIX,epochtimes.com
-HOST-SUFFIX,dongtaiwang.com
+HOST-SUFFIX,voachinese.com
 HOST-SUFFIX,chinadigitaltimes.net
 HOST-SUFFIX,rfa.org
-HOST-SUFFIX,voachinese.com
+HOST-SUFFIX,epochtimes.com
+HOST-SUFFIX,dongtaiwang.com
+HOST-SUFFIX,ntdtv.com
+HOST-SUFFIX,tuidang.org
