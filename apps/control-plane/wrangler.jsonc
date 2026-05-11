@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "my-sub-control-plane",
+  "compatibility_date": "2026-05-12",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "my-sub-control-plane"
+    },
+    {
+      "binding": "CONVERTER_SERVICE",
+      "service": "my-sub-converter"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "SUB_KV",
+      "id": "REPLACE_WITH_PROD_NAMESPACE_ID",
+      "preview_id": "REPLACE_WITH_PREVIEW_NAMESPACE_ID"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "my-sub-control-plane-opennext-cache"
+    }
+  ]
+}

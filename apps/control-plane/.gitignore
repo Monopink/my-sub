@@ -1,0 +1,7 @@
+node_modules
+.next
+.open-next
+.wrangler
+tsconfig.tsbuildinfo
+.env.local
+.env.*.local
