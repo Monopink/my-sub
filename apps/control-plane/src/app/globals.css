@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f6f7fb;
+  --foreground: #101424;
+  --card: #ffffff;
+  --card-foreground: #121826;
+  --primary: #1234a4;
+  --primary-foreground: #ffffff;
+  --muted: #e8ebf3;
+  --muted-foreground: #5b6477;
+  --border: #d9deea;
+  --danger: #c9274f;
+  --danger-foreground: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f141f;
+    --foreground: #e8ecf8;
+    --card: #171d2b;
+    --card-foreground: #f0f4ff;
+    --primary: #6b8cff;
+    --primary-foreground: #0d1738;
+    --muted: #222b40;
+    --muted-foreground: #a4aec6;
+    --border: #2f3a55;
+    --danger: #f06a8c;
+    --danger-foreground: #2b0712;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(
+    circle at 10% 10%,
+    color-mix(in oklab, var(--card) 96%, var(--background) 4%) 0%,
+    color-mix(in oklab, var(--background) 82%, #3f6ae0 18%) 35%,
+    var(--background) 100%
+  );
+  color: var(--foreground);
+  color-scheme: light dark;
+  font-family: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+a {
+  color: inherit;
+}

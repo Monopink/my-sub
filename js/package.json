@@ -1,0 +1,12 @@
+{
+  "name": "js",
+  "version": "1.0.0",
+  "description": "This module provides a unified key-value storage interface for the subconverter-rs WebAssembly virtual file system (VFS). It supports:",
+  "main": "kv_bindings.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
