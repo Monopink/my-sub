@@ -71,7 +71,7 @@ export default function ProfilesPage() {
     <div className="space-y-4">
       <PageTitle
         title="Profiles"
-        description="Manage profile options, target client, templates, and sources."
+        description="Manage profile options, target format, templates, and sources."
       />
 
       <InlineError message={error} />
@@ -94,7 +94,7 @@ export default function ProfilesPage() {
               <THead>
                 <TR>
                   <TH>Name</TH>
-                  <TH>Client</TH>
+                  <TH>Target</TH>
                   <TH>Template</TH>
                   <TH>Sources</TH>
                   <TH>Enabled</TH>
@@ -109,7 +109,7 @@ export default function ProfilesPage() {
                       <div className="font-medium">{item.name}</div>
                       <div className="text-xs text-[var(--muted-foreground)]">{item.id}</div>
                     </TD>
-                    <TD>{item.client}</TD>
+                    <TD>{item.target}</TD>
                     <TD className="max-w-xs break-all">
                       {templateNameById(templates, item.templateId)}
                     </TD>

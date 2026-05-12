@@ -1,4 +1,4 @@
-import { SUPPORTED_CLIENTS } from "@/modules/subscription/domain/entities";
+import { SUPPORTED_TARGETS } from "@/modules/subscription/domain/entities";
 
 const ALIAS_REGEX = /^[a-z0-9-_]+$/;
 
@@ -17,9 +17,9 @@ export function assertId(id: string, fieldName: string): void {
   }
 }
 
-export function assertClient(client: string): void {
-  if (!SUPPORTED_CLIENTS.includes(client as (typeof SUPPORTED_CLIENTS)[number])) {
-    throw new Error(`client must be one of: ${SUPPORTED_CLIENTS.join(", ")}`);
+export function assertTarget(target: string): void {
+  if (!SUPPORTED_TARGETS.includes(target as (typeof SUPPORTED_TARGETS)[number])) {
+    throw new Error(`target must be one of: ${SUPPORTED_TARGETS.join(", ")}`);
   }
 }
 

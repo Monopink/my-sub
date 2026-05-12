@@ -1,4 +1,4 @@
-export const SUPPORTED_CLIENTS = [
+export const SUPPORTED_TARGETS = [
   "auto",
   "clash",
   "clashr",
@@ -18,7 +18,7 @@ export const SUPPORTED_CLIENTS = [
   "singbox",
 ] as const;
 
-export type ClientType = (typeof SUPPORTED_CLIENTS)[number];
+export type TargetType = (typeof SUPPORTED_TARGETS)[number];
 
 export interface ConverterOptions {
   include?: string;
@@ -49,7 +49,7 @@ export interface Profile {
   id: string;
   name: string;
   enabled: boolean;
-  client: ClientType;
+  target: TargetType;
   templateId: string;
   sourceIds: string[];
   converterOptions: ConverterOptions;
@@ -70,7 +70,7 @@ export interface Template {
   id: string;
   name: string;
   enabled: boolean;
-  client: ClientType;
+  target: TargetType;
   ref: string;
   updatedAt: string;
 }

@@ -22,7 +22,7 @@ export default function NewTemplatePage() {
       setError("");
       await createTemplate({
         name: value.name.trim(),
-        client: value.client,
+        target: value.target,
         ref: value.ref.trim(),
         enabled: value.enabled,
       });
