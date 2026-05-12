@@ -1,4 +1,5 @@
 use crate::models::{Proxy, ProxyType};
+use fancy_regex::Regex as FancyRegex;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
@@ -226,10 +227,7 @@ pub fn reg_find(text: &str, pattern: &str) -> bool {
         return true;
     }
 
-    match Regex::new(&format!("(?i){}", pattern)) {
-        Ok(re) => re.is_match(text),
-        Err(_) => false,
-    }
+    compile_ci_regex(pattern, false).is_some_and(|re| re.is_match(text))
 }
 
 /// Check if a string fully matches a regular expression pattern
@@ -246,10 +244,7 @@ pub fn reg_match(text: &str, pattern: &str) -> bool {
         return true;
     }
 
-    match Regex::new(&format!("(?i)^{}$", pattern)) {
-        Ok(re) => re.is_match(text),
-        Err(_) => false,
-    }
+    compile_ci_regex(pattern, true).is_some_and(|re| re.is_match(text))
 }
 
 #[derive(Debug, Clone)]
@@ -259,35 +254,75 @@ pub struct CompiledRange {
 }
 
 #[derive(Debug, Clone)]
+pub enum CompiledRegex {
+    Rust(Regex),
+    Fancy(FancyRegex),
+}
+
+impl CompiledRegex {
+    fn is_match(&self, text: &str) -> bool {
+        match self {
+            CompiledRegex::Rust(re) => re.is_match(text),
+            CompiledRegex::Fancy(re) => re.is_match(text).unwrap_or(false),
+        }
+    }
+}
+
+fn contains_lookaround(pattern: &str) -> bool {
+    pattern.contains("(?=")
+        || pattern.contains("(?!")
+        || pattern.contains("(?<=")
+        || pattern.contains("(?<!")
+}
+
+fn compile_ci_regex(pattern: &str, full_match: bool) -> Option<CompiledRegex> {
+    let full_pattern = if full_match {
+        format!("(?i)^{}$", pattern)
+    } else {
+        format!("(?i){}", pattern)
+    };
+
+    if contains_lookaround(pattern) {
+        return FancyRegex::new(&full_pattern).ok().map(CompiledRegex::Fancy);
+    }
+
+    if let Ok(re) = Regex::new(&full_pattern) {
+        Some(CompiledRegex::Rust(re))
+    } else {
+        FancyRegex::new(&full_pattern).ok().map(CompiledRegex::Fancy)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum CompiledMatcher {
     /// Match against group name (case-insensitive regex find)
-    Group(Regex),
+    Group(CompiledRegex),
     /// Match against group ID range
     GroupId {
         ranges: Vec<CompiledRange>,
         negate: bool,
     },
     /// Match against proxy type (case-insensitive regex match)
-    Type(Regex),
+    Type(CompiledRegex),
     /// Match against port range
     Port {
         ranges: Vec<CompiledRange>,
         negate: bool,
     },
     /// Match against server/hostname (case-insensitive regex find)
-    Server(Regex),
+    Server(CompiledRegex),
     /// Match against protocol (case-insensitive regex find)
-    Protocol(Regex),
+    Protocol(CompiledRegex),
     /// Match against UDP support (case-insensitive regex match: "yes", "no",
     /// "undefined")
-    UdpSupport(Regex),
+    UdpSupport(CompiledRegex),
     /// Match against security features (case-insensitive regex find: "TLS",
     /// "INSECURE", "TLS13", "NONE")
-    Security(Regex),
+    Security(CompiledRegex),
     /// Match against remark (case-insensitive regex find)
-    Remarks(Regex),
+    Remarks(CompiledRegex),
     /// A plain regex rule (equivalent to !!REMARKS= but without the prefix)
-    Plain(Regex),
+    Plain(CompiledRegex),
     /// Rule that always matches (e.g., empty rule)
     AlwaysTrue,
     /// Rule that is invalid or cannot be compiled
@@ -346,7 +381,7 @@ pub fn compile_rule(rule: &str) -> CompiledRule {
     let matcher = if let Some(captures) = GROUP_REGEX.captures(rule) {
         sub_rule_str = captures.get(2).map(|m| m.as_str());
         let target = captures.get(1).map_or("", |m| m.as_str());
-        Regex::new(&format!("(?i){}", target))
+        compile_ci_regex(target, false)
             .map(CompiledMatcher::Group)
             .unwrap_or(CompiledMatcher::Invalid)
     } else if let Some(captures) = GROUPID_REGEX.captures(rule) {
@@ -358,7 +393,7 @@ pub fn compile_rule(rule: &str) -> CompiledRule {
     } else if let Some(captures) = TYPE_REGEX.captures(rule) {
         sub_rule_str = captures.get(2).map(|m| m.as_str());
         let target = captures.get(1).map_or("", |m| m.as_str());
-        Regex::new(&format!("(?i)^{}$", target))
+        compile_ci_regex(target, true)
             .map(CompiledMatcher::Type)
             .unwrap_or(CompiledMatcher::Invalid)
     } else if let Some(captures) = PORT_REGEX.captures(rule) {
@@ -369,31 +404,31 @@ pub fn compile_rule(rule: &str) -> CompiledRule {
     } else if let Some(captures) = SERVER_REGEX.captures(rule) {
         sub_rule_str = captures.get(2).map(|m| m.as_str());
         let target = captures.get(1).map_or("", |m| m.as_str());
-        Regex::new(&format!("(?i){}", target))
+        compile_ci_regex(target, false)
             .map(CompiledMatcher::Server)
             .unwrap_or(CompiledMatcher::Invalid)
     } else if let Some(captures) = PROTOCOL_REGEX.captures(rule) {
         sub_rule_str = captures.get(2).map(|m| m.as_str());
         let target = captures.get(1).map_or("", |m| m.as_str());
-        Regex::new(&format!("(?i){}", target))
+        compile_ci_regex(target, false)
             .map(CompiledMatcher::Protocol)
             .unwrap_or(CompiledMatcher::Invalid)
     } else if let Some(captures) = UDPSUPPORT_REGEX.captures(rule) {
         sub_rule_str = captures.get(2).map(|m| m.as_str());
         let target = captures.get(1).map_or("", |m| m.as_str());
-        Regex::new(&format!("(?i)^{}$", target))
+        compile_ci_regex(target, true)
             .map(CompiledMatcher::UdpSupport)
             .unwrap_or(CompiledMatcher::Invalid)
     } else if let Some(captures) = SECURITY_REGEX.captures(rule) {
         sub_rule_str = captures.get(2).map(|m| m.as_str());
         let target = captures.get(1).map_or("", |m| m.as_str());
-        Regex::new(&format!("(?i){}", target))
+        compile_ci_regex(target, false)
             .map(CompiledMatcher::Security)
             .unwrap_or(CompiledMatcher::Invalid)
     } else if let Some(captures) = REMARKS_REGEX.captures(rule) {
         sub_rule_str = captures.get(2).map(|m| m.as_str());
         let target = captures.get(1).map_or("", |m| m.as_str());
-        Regex::new(&format!("(?i){}", target))
+        compile_ci_regex(target, false)
             .map(CompiledMatcher::Remarks)
             .unwrap_or(CompiledMatcher::Invalid)
     } else {
@@ -401,7 +436,7 @@ pub fn compile_rule(rule: &str) -> CompiledRule {
         if rule.is_empty() {
             CompiledMatcher::AlwaysTrue
         } else {
-            Regex::new(&format!("(?i){}", rule))
+            compile_ci_regex(rule, false)
                 .map(CompiledMatcher::Plain)
                 .unwrap_or(CompiledMatcher::Invalid)
         }
@@ -645,6 +680,13 @@ mod tests {
     }
 
     #[test]
+    fn test_reg_find_with_negative_lookahead() {
+        let pattern = r"香港(?!.*0\.2x)";
+        assert!(reg_find("直连-香港-1x", pattern));
+        assert!(!reg_find("直连-香港-0.2x", pattern));
+    }
+
+    #[test]
     fn test_reg_match() {
         assert!(reg_match("12345", r"^\d+$"));
         assert!(!reg_match("12345a", r"^\d+$"));
@@ -850,6 +892,40 @@ mod tests {
             "this matches some_remark_pattern"
         ));
         assert!(!apply_compiled_rule_to_string(&rule, "no match here"));
+    }
+
+    #[test]
+    fn test_compile_rule_plain_regex_with_lookahead() {
+        let rule = compile_rule(r"香港(?!.*0\.2x)");
+        assert!(matches!(rule.matcher, CompiledMatcher::Plain(_)));
+        let matched = create_proxy_for_compile_test(
+            "G",
+            1,
+            ProxyType::HTTP,
+            80,
+            "h",
+            None,
+            None,
+            false,
+            None,
+            None,
+            "直连-香港-1x",
+        );
+        let filtered = create_proxy_for_compile_test(
+            "G",
+            1,
+            ProxyType::HTTP,
+            80,
+            "h",
+            None,
+            None,
+            false,
+            None,
+            None,
+            "直连-香港-0.2x",
+        );
+        assert!(apply_compiled_rule(&rule, &matched));
+        assert!(!apply_compiled_rule(&rule, &filtered));
     }
 
     #[test]
