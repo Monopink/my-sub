@@ -3,7 +3,67 @@
 //! This module provides utility functions for working with regular expressions,
 //! similar to the C++ implementation in subconverter.
 
+use fancy_regex::Regex as FancyRegex;
 use regex::{Regex, RegexBuilder};
+
+enum MatchRegex {
+    Rust(Regex),
+    Fancy(FancyRegex),
+}
+
+impl MatchRegex {
+    fn is_match(&self, src: &str) -> bool {
+        match self {
+            MatchRegex::Rust(re) => re.is_match(src),
+            MatchRegex::Fancy(re) => re.is_match(src).unwrap_or(false),
+        }
+    }
+}
+
+fn contains_lookaround(pattern: &str) -> bool {
+    pattern.contains("(?=")
+        || pattern.contains("(?!")
+        || pattern.contains("(?<=")
+        || pattern.contains("(?<!")
+}
+
+fn compile_match_regex(
+    pattern: &str,
+    case_insensitive: bool,
+    full_match: bool,
+    multiline: bool,
+) -> Option<MatchRegex> {
+    let wrapped_pattern = if full_match {
+        format!("^{}$", pattern)
+    } else {
+        pattern.to_string()
+    };
+
+    let flags = match (case_insensitive, multiline) {
+        (true, true) => "(?im)",
+        (true, false) => "(?i)",
+        (false, true) => "(?m)",
+        (false, false) => "",
+    };
+
+    if contains_lookaround(pattern) {
+        return FancyRegex::new(&format!("{flags}{wrapped_pattern}"))
+            .ok()
+            .map(MatchRegex::Fancy);
+    }
+
+    if let Ok(re) = RegexBuilder::new(&wrapped_pattern)
+        .case_insensitive(case_insensitive)
+        .multi_line(multiline)
+        .build()
+    {
+        Some(MatchRegex::Rust(re))
+    } else {
+        FancyRegex::new(&format!("{flags}{wrapped_pattern}"))
+            .ok()
+            .map(MatchRegex::Fancy)
+    }
+}
 
 /// Checks if a regular expression pattern is valid
 ///
@@ -35,15 +95,7 @@ pub fn reg_find(src: &str, match_pattern: &str) -> bool {
         (match_pattern, false)
     };
 
-    if let Ok(regex) = RegexBuilder::new(pattern)
-        .case_insensitive(case_insensitive)
-        .multi_line(true)
-        .build()
-    {
-        regex.is_match(src)
-    } else {
-        false
-    }
+    compile_match_regex(pattern, case_insensitive, false, true).is_some_and(|re| re.is_match(src))
 }
 
 /// Replaces matches of a pattern with a replacement string
@@ -104,14 +156,7 @@ pub fn reg_match(src: &str, match_pattern: &str) -> bool {
         (match_pattern, false)
     };
 
-    if let Ok(regex) = RegexBuilder::new(&format!("^{}$", pattern))
-        .case_insensitive(case_insensitive)
-        .build()
-    {
-        regex.is_match(src)
-    } else {
-        false
-    }
+    compile_match_regex(pattern, case_insensitive, true, false).is_some_and(|re| re.is_match(src))
 }
 
 /// Gets the capturing groups from a regex match
@@ -228,6 +273,13 @@ mod tests {
         assert!(reg_find("hello world", r"world"));
         assert!(reg_find("HELLO world", r"(?i)hello"));
         assert!(!reg_find("hello world", r"universe"));
+    }
+
+    #[test]
+    fn test_reg_find_lookahead() {
+        let pattern = r"香港(?!.*0\.2x)";
+        assert!(reg_find("直连-香港-1x", pattern));
+        assert!(!reg_find("直连-香港-0.2x", pattern));
     }
 
     #[test]
