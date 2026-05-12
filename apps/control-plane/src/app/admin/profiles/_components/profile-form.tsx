@@ -24,6 +24,8 @@ type BooleanConverterOptionKey =
   | "addEmoji"
   | "removeEmoji"
   | "appendType"
+  | "insert"
+  | "prepend"
   | "tfo"
   | "udp"
   | "scv"
@@ -67,6 +69,10 @@ const schema = z
     removeEmojiValue: z.enum(BOOL_VALUES),
     appendTypeEnabled: z.boolean(),
     appendTypeValue: z.enum(BOOL_VALUES),
+    insertEnabled: z.boolean(),
+    insertValue: z.enum(BOOL_VALUES),
+    prependEnabled: z.boolean(),
+    prependValue: z.enum(BOOL_VALUES),
     tfoEnabled: z.boolean(),
     tfoValue: z.enum(BOOL_VALUES),
     udpEnabled: z.boolean(),
@@ -204,6 +210,8 @@ export function buildConverterOptionsFromForm(value: ProfileFormValue): Converte
     [value.addEmojiEnabled, value.addEmojiValue, "addEmoji"],
     [value.removeEmojiEnabled, value.removeEmojiValue, "removeEmoji"],
     [value.appendTypeEnabled, value.appendTypeValue, "appendType"],
+    [value.insertEnabled, value.insertValue, "insert"],
+    [value.prependEnabled, value.prependValue, "prepend"],
     [value.tfoEnabled, value.tfoValue, "tfo"],
     [value.udpEnabled, value.udpValue, "udp"],
     [value.scvEnabled, value.scvValue, "scv"],
@@ -327,6 +335,10 @@ export function ProfileForm({
       removeEmojiValue: boolToValue(initial?.converterOptions.removeEmoji ?? false),
       appendTypeEnabled: optionEnabled(initial?.converterOptions.appendType),
       appendTypeValue: boolToValue(initial?.converterOptions.appendType ?? false),
+      insertEnabled: optionEnabled(initial?.converterOptions.insert),
+      insertValue: boolToValue(initial?.converterOptions.insert ?? false),
+      prependEnabled: optionEnabled(initial?.converterOptions.prepend),
+      prependValue: boolToValue(initial?.converterOptions.prepend ?? false),
       tfoEnabled: optionEnabled(initial?.converterOptions.tfo),
       tfoValue: boolToValue(initial?.converterOptions.tfo ?? false),
       udpEnabled: optionEnabled(initial?.converterOptions.udp),
@@ -545,6 +557,30 @@ export function ProfileForm({
             }
             valueControl={
               <BoolSelectField id="appendTypeValue" registration={form.register("appendTypeValue")} />
+            }
+          />
+          <OptionRow
+            label="insert"
+            enabledControl={
+              <label className="flex items-center gap-2">
+                <Checkbox {...form.register("insertEnabled")} />
+                <span>Enable</span>
+              </label>
+            }
+            valueControl={
+              <BoolSelectField id="insertValue" registration={form.register("insertValue")} />
+            }
+          />
+          <OptionRow
+            label="prepend"
+            enabledControl={
+              <label className="flex items-center gap-2">
+                <Checkbox {...form.register("prependEnabled")} />
+                <span>Enable</span>
+              </label>
+            }
+            valueControl={
+              <BoolSelectField id="prependValue" registration={form.register("prependValue")} />
             }
           />
           <OptionRow
