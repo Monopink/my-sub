@@ -54,7 +54,7 @@ export default function EditProfilePage() {
       const updated = await updateProfile(profileId, {
         name: value.name.trim(),
         enabled: value.enabled,
-        client: value.client,
+        target: value.target,
         templateId: value.templateId,
         sourceIds: value.sourceIds,
         converterOptions: buildConverterOptionsFromForm(value),

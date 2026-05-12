@@ -10,7 +10,7 @@ import type {
   Source,
   Template,
 } from "@/modules/subscription/domain/entities";
-import { SUPPORTED_CLIENTS } from "@/modules/subscription/domain/entities";
+import { SUPPORTED_TARGETS } from "@/modules/subscription/domain/entities";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ const schema = z
   .object({
     name: z.string().min(1, "name is required"),
     enabled: z.boolean(),
-    client: z.enum(SUPPORTED_CLIENTS),
+    target: z.enum(SUPPORTED_TARGETS),
     templateId: z.string().min(1, "template is required"),
     sourceIds: z.array(z.string()),
 
@@ -231,16 +231,25 @@ function OptionRow({
   label,
   enabledControl,
   valueControl,
+  helperText,
 }: {
   label: string;
   enabledControl: ReactNode;
   valueControl: ReactNode;
+  helperText?: string;
 }) {
   return (
-    <div className="grid items-center gap-2 md:grid-cols-[120px_180px_minmax(0,1fr)]">
+    <div className="grid gap-1 md:grid-cols-[120px_180px_minmax(0,1fr)]">
       <div className="flex items-center gap-2 text-sm">{enabledControl}</div>
       <code className="text-xs text-[var(--muted-foreground)]">{label}</code>
       <div>{valueControl}</div>
+      {helperText ? (
+        <>
+          <div />
+          <div />
+          <p className="text-xs text-[var(--muted-foreground)]">{helperText}</p>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -275,10 +284,10 @@ export function ProfileForm({
   submitting: boolean;
   onSubmit: (value: ProfileFormValue) => Promise<void>;
 }) {
-  const defaultClient = initial?.client ?? "clash";
-  const clientTemplates = useMemo(
-    () => templates.filter((item) => item.client === defaultClient && item.enabled),
-    [templates, defaultClient]
+  const defaultTarget = initial?.target ?? "clash";
+  const targetTemplates = useMemo(
+    () => templates.filter((item) => item.target === defaultTarget && item.enabled),
+    [templates, defaultTarget]
   );
 
   const form = useForm<ProfileFormValue>({
@@ -286,8 +295,8 @@ export function ProfileForm({
     defaultValues: {
       name: initial?.name ?? "",
       enabled: initial?.enabled ?? true,
-      client: defaultClient,
-      templateId: initial?.templateId ?? clientTemplates[0]?.id ?? "",
+      target: defaultTarget,
+      templateId: initial?.templateId ?? targetTemplates[0]?.id ?? "",
       sourceIds: initial?.sourceIds ?? [],
 
       includeEnabled: optionEnabled(initial?.converterOptions.include),
@@ -347,11 +356,11 @@ export function ProfileForm({
     },
   });
 
-  const selectedClient = form.watch("client");
+  const selectedTarget = form.watch("target");
   const selectedTemplateId = form.watch("templateId");
   const templateOptions = useMemo(
-    () => templates.filter((item) => item.client === selectedClient && item.enabled),
-    [templates, selectedClient]
+    () => templates.filter((item) => item.target === selectedTarget && item.enabled),
+    [templates, selectedTarget]
   );
 
   const selectedSourceIds = form.watch("sourceIds");
@@ -388,11 +397,11 @@ export function ProfileForm({
 
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <Label htmlFor="client">Client</Label>
-          <Select id="client" {...form.register("client")}>
-            {SUPPORTED_CLIENTS.map((client) => (
-              <option key={client} value={client}>
-                {client}
+          <Label htmlFor="target">Target</Label>
+          <Select id="target" {...form.register("target")}>
+            {SUPPORTED_TARGETS.map((target) => (
+              <option key={target} value={target}>
+                {target}
               </option>
             ))}
           </Select>
@@ -427,6 +436,12 @@ export function ProfileForm({
 
       <div className="rounded-md border border-[var(--border)] p-3">
         <div className="mb-3 text-sm font-medium">Converter Options</div>
+        <p className="mb-1 text-xs text-[var(--muted-foreground)]">
+          Each parameter has a dedicated switch. Disabled means not sent to subconverter.
+        </p>
+        <p className="mb-3 text-xs text-[var(--muted-foreground)]">
+          For standard Clash output, keep <code>new_name=true</code> and avoid <code>list=true</code>.
+        </p>
         <div className="grid gap-2">
           <OptionRow
             label="include"
@@ -581,6 +596,7 @@ export function ProfileForm({
               </label>
             }
             valueControl={<BoolSelectField id="listValue" registration={form.register("listValue")} />}
+            helperText="When list=true, output is node-list mode, not full Clash profile."
           />
           <OptionRow
             label="sort"
@@ -613,6 +629,7 @@ export function ProfileForm({
             valueControl={
               <BoolSelectField id="newNameValue" registration={form.register("newNameValue")} />
             }
+            helperText="Set true for modern Clash keys: proxies / proxy-groups."
           />
           <OptionRow
             label="strict"

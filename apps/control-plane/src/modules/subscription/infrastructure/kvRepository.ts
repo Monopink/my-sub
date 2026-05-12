@@ -8,7 +8,7 @@ import type {
 } from "@/modules/subscription/domain/entities";
 import {
   assertAlias,
-  assertClient,
+  assertTarget,
   assertId,
   dateOnlyIso,
   nowIso,
@@ -78,11 +78,11 @@ export class KvSubscriptionRepository implements SubscriptionRepository {
   async upsertProfile(input: Partial<Profile> & { id: string }): Promise<Profile> {
     assertId(input.id, "profile.id");
     const current = await this.getProfile(input.id);
-    const resolvedClient = input.client ?? current?.client;
-    if (!resolvedClient) {
-      throw new Error("profile.client is required");
+    const resolvedTarget = input.target ?? current?.target;
+    if (!resolvedTarget) {
+      throw new Error("profile.target is required");
     }
-    assertClient(resolvedClient);
+    assertTarget(resolvedTarget);
     const resolvedTemplateId = input.templateId ?? current?.templateId;
     if (!resolvedTemplateId) {
       throw new Error("profile.templateId is required");
@@ -92,7 +92,7 @@ export class KvSubscriptionRepository implements SubscriptionRepository {
       id: input.id,
       name: input.name ?? current?.name ?? input.id,
       enabled: input.enabled ?? current?.enabled ?? true,
-      client: resolvedClient,
+      target: resolvedTarget,
       templateId: resolvedTemplateId,
       sourceIds: input.sourceIds ?? current?.sourceIds ?? [],
       converterOptions: input.converterOptions ?? current?.converterOptions ?? {},
@@ -149,17 +149,17 @@ export class KvSubscriptionRepository implements SubscriptionRepository {
   async upsertTemplate(input: Partial<Template> & { id: string }): Promise<Template> {
     assertId(input.id, "template.id");
     const current = await this.getTemplate(input.id);
-    const resolvedClient = input.client ?? current?.client;
-    if (!resolvedClient) {
-      throw new Error("template.client is required");
+    const resolvedTarget = input.target ?? current?.target;
+    if (!resolvedTarget) {
+      throw new Error("template.target is required");
     }
-    assertClient(resolvedClient);
+    assertTarget(resolvedTarget);
     const resolvedRef = assertTemplateRefUrl(input.ref ?? current?.ref ?? "");
     const merged: Template = {
       id: input.id,
       name: input.name ?? current?.name ?? input.id,
       enabled: input.enabled ?? current?.enabled ?? true,
-      client: resolvedClient,
+      target: resolvedTarget,
       ref: resolvedRef,
       updatedAt: nowIso(),
     };
@@ -217,7 +217,7 @@ export class KvSubscriptionRepository implements SubscriptionRepository {
       return null;
     }
     const template = await this.getTemplate(profile.templateId);
-    if (!template || !template.enabled || template.client !== profile.client) {
+    if (!template || !template.enabled || template.target !== profile.target) {
       return null;
     }
     const sources = await Promise.all(profile.sourceIds.map((id) => this.getSource(id)));

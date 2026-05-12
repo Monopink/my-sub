@@ -5,7 +5,7 @@ import type {
   Source,
   Template,
 } from "@/modules/subscription/domain/entities";
-import { assertAlias, assertClient } from "@/modules/subscription/domain/rules";
+import { assertAlias, assertTarget } from "@/modules/subscription/domain/rules";
 import type { SubscriptionRepository } from "@/modules/subscription/application/ports";
 
 export class SubscriptionService {
@@ -63,8 +63,8 @@ export class SubscriptionService {
   }
 
   upsertTemplate(input: Partial<Template> & { id: string }): Promise<Template> {
-    if (input.client) {
-      assertClient(input.client);
+    if (input.target) {
+      assertTarget(input.target);
     }
     return this.repository.upsertTemplate(input);
   }
@@ -101,14 +101,14 @@ export class SubscriptionService {
   private async validateAndUpsertProfile(
     input: Partial<Profile> & { id: string }
   ): Promise<Profile> {
-    if (input.client) {
-      assertClient(input.client);
+    if (input.target) {
+      assertTarget(input.target);
     }
 
     const current = await this.repository.getProfile(input.id);
-    const resolvedClient = input.client ?? current?.client;
-    if (!resolvedClient) {
-      throw new Error("profile.client is required");
+    const resolvedTarget = input.target ?? current?.target;
+    if (!resolvedTarget) {
+      throw new Error("profile.target is required");
     }
 
     const resolvedTemplateId = input.templateId ?? current?.templateId;
@@ -119,9 +119,9 @@ export class SubscriptionService {
     if (!template) {
       throw new Error(`template not found: ${resolvedTemplateId}`);
     }
-    if (template.client !== resolvedClient) {
+    if (template.target !== resolvedTarget) {
       throw new Error(
-        `template client mismatch: expected ${resolvedClient}, got ${template.client}`
+        `template target mismatch: expected ${resolvedTarget}, got ${template.target}`
       );
     }
 

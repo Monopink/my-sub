@@ -46,7 +46,7 @@ function buildConverterUrl(
   sourceUrls: string[]
 ): URL {
   const upstream = new URL("https://converter.internal/sub");
-  upstream.searchParams.set("target", profile.client);
+  upstream.searchParams.set("target", profile.target);
   upstream.searchParams.set("url", sourceUrls.join("|"));
   upstream.searchParams.set("config", resolveTemplateUrl(template.ref));
 
