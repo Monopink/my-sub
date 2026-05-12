@@ -20,6 +20,31 @@ export const SUPPORTED_CLIENTS = [
 
 export type ClientType = (typeof SUPPORTED_CLIENTS)[number];
 
+export interface ConverterOptions {
+  include?: string;
+  exclude?: string;
+  rename?: string;
+  addEmoji?: boolean;
+  removeEmoji?: boolean;
+  appendType?: boolean;
+  tfo?: boolean;
+  udp?: boolean;
+  scv?: boolean;
+  tls13?: boolean;
+  list?: boolean;
+  sort?: boolean;
+  sortScript?: string;
+  fdn?: boolean;
+  newName?: boolean;
+  interval?: number;
+  strict?: boolean;
+  filter?: string;
+  script?: boolean;
+  classic?: boolean;
+  expand?: boolean;
+  ver?: number;
+}
+
 export interface Profile {
   id: string;
   name: string;
@@ -27,11 +52,7 @@ export interface Profile {
   client: ClientType;
   templateId: string;
   sourceIds: string[];
-  converterOptions: {
-    include?: string;
-    exclude?: string;
-    emoji?: boolean;
-  };
+  converterOptions: ConverterOptions;
   notes?: string;
   updatedAt: string;
 }
