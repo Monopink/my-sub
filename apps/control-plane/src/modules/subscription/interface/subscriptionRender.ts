@@ -77,6 +77,8 @@ function buildConverterUrl(
   setBooleanOption("add_emoji", options.addEmoji);
   setBooleanOption("remove_emoji", options.removeEmoji);
   setBooleanOption("append_type", options.appendType);
+  setBooleanOption("insert", options.insert);
+  setBooleanOption("prepend", options.prepend);
   setBooleanOption("tfo", options.tfo);
   setBooleanOption("udp", options.udp);
   setBooleanOption("scv", options.scv);

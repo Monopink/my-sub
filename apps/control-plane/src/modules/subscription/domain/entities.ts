@@ -27,6 +27,8 @@ export interface ConverterOptions {
   addEmoji?: boolean;
   removeEmoji?: boolean;
   appendType?: boolean;
+  insert?: boolean;
+  prepend?: boolean;
   tfo?: boolean;
   udp?: boolean;
   scv?: boolean;
