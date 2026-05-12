@@ -1,6 +1,7 @@
 use subconverter::api::sub::{sub_process, SubconverterQuery};
 use subconverter::Settings;
 use subconverter::update_settings_from_content;
+use std::collections::HashMap;
 use std::sync::OnceLock;
 use worker::*;
 
@@ -9,6 +10,17 @@ static DEFAULT_PREF_CONTENT: &str = include_str!("../../../base/config/my-sub-pr
 
 fn error_response(message: &str, status: u16) -> Result<Response> {
     Ok(Response::from_json(&serde_json::json!({ "error": message }))?.with_status(status))
+}
+
+fn build_upstream_request_headers(req: &Request) -> HashMap<String, String> {
+    let mut headers = HashMap::new();
+    if let Ok(Some(ua)) = req.headers().get("user-agent") {
+        let ua = ua.trim();
+        if !ua.is_empty() {
+            headers.insert("User-Agent".to_string(), ua.to_string());
+        }
+    }
+    headers
 }
 
 async fn ensure_pref_loaded(env: &Env) -> Result<(), String> {
@@ -61,10 +73,17 @@ pub async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         return error_response("not found", 404);
     }
 
-    let query = match serde_urlencoded::from_str::<SubconverterQuery>(url.query().unwrap_or("")) {
+    let mut query = match serde_urlencoded::from_str::<SubconverterQuery>(url.query().unwrap_or("")) {
         Ok(q) => q,
         Err(err) => return error_response(&format!("invalid query: {err}"), 400),
     };
+
+    if query.request_headers.is_none() {
+        let upstream_headers = build_upstream_request_headers(&req);
+        if !upstream_headers.is_empty() {
+            query.request_headers = Some(upstream_headers);
+        }
+    }
 
     if let Err(err) = ensure_pref_loaded(&env).await {
         return error_response(&format!("converter settings unavailable: {err}"), 500);

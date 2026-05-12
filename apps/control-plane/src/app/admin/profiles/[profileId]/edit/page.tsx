@@ -14,6 +14,7 @@ import {
 } from "@/app/admin/_lib/api";
 import { InlineError, InlineSuccess, PageTitle } from "@/app/admin/_components/common";
 import {
+  buildConverterOptionsFromForm,
   ProfileForm,
   type ProfileFormValue,
 } from "@/app/admin/profiles/_components/profile-form";
@@ -56,11 +57,7 @@ export default function EditProfilePage() {
         client: value.client,
         templateId: value.templateId,
         sourceIds: value.sourceIds,
-        converterOptions: {
-          include: value.include.trim(),
-          exclude: value.exclude.trim(),
-          emoji: value.emoji,
-        },
+        converterOptions: buildConverterOptionsFromForm(value),
         notes: value.notes.trim(),
       });
       setProfile(updated);

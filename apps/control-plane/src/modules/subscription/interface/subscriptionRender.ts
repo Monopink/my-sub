@@ -50,15 +50,48 @@ function buildConverterUrl(
   upstream.searchParams.set("url", sourceUrls.join("|"));
   upstream.searchParams.set("config", resolveTemplateUrl(template.ref));
 
-  if (profile.converterOptions.include) {
-    upstream.searchParams.set("include", profile.converterOptions.include);
-  }
-  if (profile.converterOptions.exclude) {
-    upstream.searchParams.set("exclude", profile.converterOptions.exclude);
-  }
-  if (typeof profile.converterOptions.emoji === "boolean") {
-    upstream.searchParams.set("emoji", profile.converterOptions.emoji ? "true" : "false");
-  }
+  const options = profile.converterOptions;
+  const setStringOption = (key: string, value: string | undefined) => {
+    const normalized = value?.trim();
+    if (normalized) {
+      upstream.searchParams.set(key, normalized);
+    }
+  };
+  const setBooleanOption = (key: string, value: boolean | undefined) => {
+    if (typeof value === "boolean") {
+      upstream.searchParams.set(key, value ? "true" : "false");
+    }
+  };
+  const setNumberOption = (key: string, value: number | undefined) => {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      upstream.searchParams.set(key, String(value));
+    }
+  };
+
+  setStringOption("include", options.include);
+  setStringOption("exclude", options.exclude);
+  setStringOption("rename", options.rename);
+  setStringOption("sort_script", options.sortScript);
+  setStringOption("filter", options.filter);
+
+  setBooleanOption("add_emoji", options.addEmoji);
+  setBooleanOption("remove_emoji", options.removeEmoji);
+  setBooleanOption("append_type", options.appendType);
+  setBooleanOption("tfo", options.tfo);
+  setBooleanOption("udp", options.udp);
+  setBooleanOption("scv", options.scv);
+  setBooleanOption("tls13", options.tls13);
+  setBooleanOption("list", options.list);
+  setBooleanOption("sort", options.sort);
+  setBooleanOption("fdn", options.fdn);
+  setBooleanOption("new_name", options.newName);
+  setBooleanOption("strict", options.strict);
+  setBooleanOption("script", options.script);
+  setBooleanOption("classic", options.classic);
+  setBooleanOption("expand", options.expand);
+
+  setNumberOption("interval", options.interval);
+  setNumberOption("ver", options.ver);
 
   const filename = alias;
   upstream.searchParams.set("filename", filename);
@@ -82,7 +115,7 @@ function isAbortError(error: unknown): boolean {
   return error.name === "AbortError" || error.message.includes("aborted");
 }
 
-async function proxyConverter(url: URL): Promise<Response> {
+async function proxyConverter(request: Request, url: URL): Promise<Response> {
   const ctx = await getCloudflareContext({ async: true });
   const service = ctx.env.CONVERTER_SERVICE;
   if (!service) {
@@ -92,9 +125,15 @@ async function proxyConverter(url: URL): Promise<Response> {
   const effectiveTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), effectiveTimeoutMs);
+  const passthroughHeaders = new Headers();
+  const ua = request.headers.get("user-agent");
+  if (ua) {
+    passthroughHeaders.set("user-agent", ua);
+  }
   try {
     return await service.fetch(url.toString(), {
       method: "GET",
+      headers: passthroughHeaders,
       signal: controller.signal,
       cache: "no-store",
     });
@@ -174,7 +213,7 @@ export async function renderAliasSubscription(
       resolved.template,
       resolved.sources.map((s) => s.url)
     );
-    const upstream = await proxyConverter(upstreamUrl);
+    const upstream = await proxyConverter(request, upstreamUrl);
     const body = await upstream.text();
     const status = upstream.status;
 
