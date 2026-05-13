@@ -247,10 +247,12 @@ function OptionRow({
   helperText?: string;
 }) {
   return (
-    <div className="grid gap-1 md:grid-cols-[120px_180px_minmax(0,1fr)]">
-      <div className="flex items-center gap-2 text-sm">{enabledControl}</div>
-      <code className="text-xs text-[var(--muted-foreground)]">{label}</code>
-      <div>{valueControl}</div>
+    <div className="grid gap-x-2 gap-y-1 md:grid-cols-[120px_180px_minmax(0,1fr)]">
+      <div className="flex min-h-9 items-center gap-2 text-sm">{enabledControl}</div>
+      <code className="flex min-h-9 items-center text-xs leading-none text-[var(--muted-foreground)]">
+        {label}
+      </code>
+      <div className="flex min-h-9 items-center">{valueControl}</div>
       {helperText ? (
         <>
           <div />

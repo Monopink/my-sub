@@ -11,6 +11,7 @@ import {
   assertTarget,
   assertId,
   dateOnlyIso,
+  normalizeTarget,
   nowIso,
 } from "@/modules/subscription/domain/rules";
 import type { SubscriptionRepository } from "@/modules/subscription/application/ports";
@@ -54,6 +55,29 @@ async function scanEntities<T>(prefix: string): Promise<T[]> {
 }
 
 export class KvSubscriptionRepository implements SubscriptionRepository {
+  private normalizeProfileTarget(profile: Profile | null): Profile | null {
+    if (!profile) {
+      return null;
+    }
+    const raw = profile as Profile & { client?: string };
+    const normalizedTarget = normalizeTarget(raw.target ?? raw.client);
+    if (!normalizedTarget) {
+      return profile;
+    }
+    return { ...profile, target: normalizedTarget };
+  }
+
+  private normalizeTemplateTarget(template: Template | null): Template | null {
+    if (!template) {
+      return null;
+    }
+    const normalizedTarget = normalizeTarget(template.target);
+    if (!normalizedTarget) {
+      return template;
+    }
+    return { ...template, target: normalizedTarget };
+  }
+
   async ensureSchemaVersion(): Promise<void> {
     const current = await kvGetJson<{ schema_version: string }>(
       KV_KEYS.schemaVersion
@@ -68,17 +92,20 @@ export class KvSubscriptionRepository implements SubscriptionRepository {
 
   async listProfiles(): Promise<Profile[]> {
     const profiles = await scanEntities<Profile>("profile");
-    return profiles.sort((a, b) => a.id.localeCompare(b.id));
+    return profiles
+      .map((item) => this.normalizeProfileTarget(item) as Profile)
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   async getProfile(id: string): Promise<Profile | null> {
-    return kvGetJson<Profile>(KV_KEYS.profile(id));
+    const profile = await kvGetJson<Profile>(KV_KEYS.profile(id));
+    return this.normalizeProfileTarget(profile);
   }
 
   async upsertProfile(input: Partial<Profile> & { id: string }): Promise<Profile> {
     assertId(input.id, "profile.id");
     const current = await this.getProfile(input.id);
-    const resolvedTarget = input.target ?? current?.target;
+    const resolvedTarget = normalizeTarget(input.target ?? current?.target);
     if (!resolvedTarget) {
       throw new Error("profile.target is required");
     }
@@ -139,17 +166,20 @@ export class KvSubscriptionRepository implements SubscriptionRepository {
 
   async listTemplates(): Promise<Template[]> {
     const templates = await scanEntities<Template>("template");
-    return templates.sort((a, b) => a.id.localeCompare(b.id));
+    return templates
+      .map((item) => this.normalizeTemplateTarget(item) as Template)
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   async getTemplate(id: string): Promise<Template | null> {
-    return kvGetJson<Template>(KV_KEYS.template(id));
+    const template = await kvGetJson<Template>(KV_KEYS.template(id));
+    return this.normalizeTemplateTarget(template);
   }
 
   async upsertTemplate(input: Partial<Template> & { id: string }): Promise<Template> {
     assertId(input.id, "template.id");
     const current = await this.getTemplate(input.id);
-    const resolvedTarget = input.target ?? current?.target;
+    const resolvedTarget = normalizeTarget(input.target ?? current?.target);
     if (!resolvedTarget) {
       throw new Error("template.target is required");
     }
