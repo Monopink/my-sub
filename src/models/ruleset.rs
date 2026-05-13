@@ -29,6 +29,7 @@ pub static RULESET_TYPES: once_cell::sync::Lazy<RulesetMapping> =
         types.insert("clash-domain:".to_string(), RulesetType::ClashDomain);
         types.insert("clash-ipcidr:".to_string(), RulesetType::ClashIpcidr);
         types.insert("clash-classical:".to_string(), RulesetType::ClashClassical);
+        types.insert("clash-classic:".to_string(), RulesetType::ClashClassical);
         types.insert("quanx:".to_string(), RulesetType::Quanx);
         types.insert("surge:".to_string(), RulesetType::Surge);
         types

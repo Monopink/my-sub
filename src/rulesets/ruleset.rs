@@ -4,6 +4,7 @@ use log::{debug, info, warn}; // Import for parallel execution
 
 use crate::models::ruleset::{get_ruleset_type_from_url, RulesetContent, RulesetType};
 use crate::models::RulesetConfig;
+use crate::rulesets::embedded_rules::{get_embedded_ruleset, is_embedded_ruleset_url};
 use crate::utils::file::read_file_async;
 use crate::utils::file_exists;
 use crate::utils::http::{parse_proxy, web_get_content_async, ProxyConfig};
@@ -35,6 +36,19 @@ pub async fn fetch_ruleset(
             debug!("Using cached ruleset for URL: {}", url);
             return Ok(content);
         }
+    }
+
+    if is_embedded_ruleset_url(url) {
+        if let Some(content) = get_embedded_ruleset(url) {
+            let content = content.to_string();
+            if cache_timeout > 0 {
+                if let Err(e) = memory_cache::store(url, &content) {
+                    warn!("Failed to store embedded ruleset in cache: {}", e);
+                }
+            }
+            return Ok(content);
+        }
+        return Err(format!("Embedded ruleset not found: {}", url));
     }
 
     // If it's a file on disk, read it directly using async file read
