@@ -10,6 +10,15 @@ use crate::utils::http::{parse_proxy, web_get_content_async, ProxyConfig};
 use crate::utils::memory_cache;
 use crate::Settings;
 
+#[derive(Debug, Default, Clone)]
+pub struct RulesetRefreshReport {
+    pub total: usize,
+    pub inline: usize,
+    pub fetch_ok: usize,
+    pub fetch_fail: usize,
+    pub failed_urls: Vec<String>,
+}
+
 /// Fetch ruleset content from file or URL with async operations
 pub async fn fetch_ruleset(
     url: &str,
@@ -81,9 +90,13 @@ async fn fetch_from_url(url: &str, proxy: &ProxyConfig) -> Result<String, String
 pub async fn refresh_rulesets(
     ruleset_list: &[RulesetConfig],
     ruleset_content_array: &mut Vec<RulesetContent>,
-) {
+) -> RulesetRefreshReport {
     // Clear existing ruleset content
     ruleset_content_array.clear();
+    let mut report = RulesetRefreshReport {
+        total: ruleset_list.len(),
+        ..RulesetRefreshReport::default()
+    };
 
     // Get global settings
     let settings = Settings::current();
@@ -108,6 +121,7 @@ pub async fn refresh_rulesets(
             let mut ruleset = RulesetContent::new("", &rule_group);
             ruleset.set_rule_content(&rule_url[pos..]); // Use original url with "[]" prefix
             ruleset_content_array.push(ruleset);
+            report.inline += 1;
             continue; // Skip fetching for inline rules
         }
 
@@ -198,14 +212,18 @@ pub async fn refresh_rulesets(
             // Set rule content
             ruleset.set_rule_content(&content);
             ruleset_content_array.push(ruleset);
+            report.fetch_ok += 1;
         } else {
             // Log error if fetching failed
             warn!(
                 "Failed to fetch ruleset content for original URL: {}",
                 result.original_url
             );
+            report.fetch_fail += 1;
+            report.failed_urls.push(result.original_url);
         }
     }
+    report
 }
 
 /// Refresh rulesets based on configuration (Sequential version for WASM)
@@ -213,9 +231,13 @@ pub async fn refresh_rulesets(
 pub async fn refresh_rulesets(
     ruleset_list: &[RulesetConfig],
     ruleset_content_array: &mut Vec<RulesetContent>,
-) {
+) -> RulesetRefreshReport {
     // Clear existing ruleset content
     ruleset_content_array.clear();
+    let mut report = RulesetRefreshReport {
+        total: ruleset_list.len(),
+        ..RulesetRefreshReport::default()
+    };
 
     // Get global settings
     let settings = Settings::current();
@@ -237,6 +259,7 @@ pub async fn refresh_rulesets(
             let mut ruleset = RulesetContent::new("", &rule_group);
             ruleset.set_rule_content(&rule_url[pos..]);
             ruleset_content_array.push(ruleset);
+            report.inline += 1;
             continue; // Move to next ruleset config
         }
 
@@ -282,6 +305,7 @@ pub async fn refresh_rulesets(
                 ruleset.update_interval = interval;
                 ruleset.set_rule_content(&content);
                 ruleset_content_array.push(ruleset);
+                report.fetch_ok += 1;
             }
             Err(e) => {
                 // Log error if fetching failed
@@ -289,9 +313,12 @@ pub async fn refresh_rulesets(
                     "Failed to fetch ruleset content for original URL: {} - Error: {}",
                     original_url, e
                 );
+                report.fetch_fail += 1;
+                report.failed_urls.push(original_url);
             }
         }
     }
+    report
 }
 
 /// Helper struct to store fetch results and metadata
