@@ -46,6 +46,7 @@ const schema = z
     target: z.enum(SUPPORTED_TARGETS),
     templateId: z.string().min(1, "template is required"),
     sourceIds: z.array(z.string()),
+    infoSourceIds: z.array(z.string()),
 
     includeEnabled: z.boolean(),
     includeValue: z.string(),
@@ -232,7 +233,22 @@ export function buildConverterOptionsFromForm(value: ProfileFormValue): Converte
     }
   }
 
+  const infoSourceIds = value.sourceIds.filter((id) => value.infoSourceIds.includes(id));
+  if (infoSourceIds.length > 0) {
+    options.appendInfo = true;
+    options.appendInfoN = infoSourceIds.length;
+  } else {
+    options.appendInfo = false;
+  }
+
   return options;
+}
+
+export function buildOrderedSourceIdsFromForm(value: ProfileFormValue): string[] {
+  const selectedForInfo = new Set(value.infoSourceIds);
+  const front = value.sourceIds.filter((id) => selectedForInfo.has(id));
+  const back = value.sourceIds.filter((id) => !selectedForInfo.has(id));
+  return [...front, ...back];
 }
 
 function OptionRow({
@@ -308,6 +324,12 @@ export function ProfileForm({
       target: defaultTarget,
       templateId: initial?.templateId ?? enabledTemplates[0]?.id ?? "",
       sourceIds: initial?.sourceIds ?? [],
+      infoSourceIds:
+        (initial?.converterOptions.appendInfo ?? false) &&
+        typeof initial?.converterOptions.appendInfoN === "number" &&
+        initial.converterOptions.appendInfoN > 0
+          ? (initial?.sourceIds ?? []).slice(0, initial.converterOptions.appendInfoN)
+          : [],
 
       includeEnabled: optionEnabled(initial?.converterOptions.include),
       includeValue: initial?.converterOptions.include ?? "",
@@ -374,6 +396,7 @@ export function ProfileForm({
   const templateOptions = enabledTemplates;
 
   const selectedSourceIds = form.watch("sourceIds");
+  const selectedInfoSourceIds = form.watch("infoSourceIds");
 
   function toggleSource(sourceId: string) {
     const hasValue = selectedSourceIds.includes(sourceId);
@@ -381,6 +404,14 @@ export function ProfileForm({
       ? selectedSourceIds.filter((id) => id !== sourceId)
       : [...selectedSourceIds, sourceId];
     form.setValue("sourceIds", next, { shouldValidate: true });
+  }
+
+  function toggleInfoSource(sourceId: string) {
+    const hasValue = selectedInfoSourceIds.includes(sourceId);
+    const next = hasValue
+      ? selectedInfoSourceIds.filter((id) => id !== sourceId)
+      : [...selectedInfoSourceIds, sourceId];
+    form.setValue("infoSourceIds", next, { shouldValidate: true });
   }
 
   useEffect(() => {
@@ -392,6 +423,14 @@ export function ProfileForm({
       form.setValue("templateId", templateOptions[0].id, { shouldValidate: true });
     }
   }, [form, selectedTemplateId, templateOptions]);
+
+  useEffect(() => {
+    const selectedSet = new Set(selectedSourceIds);
+    const filtered = selectedInfoSourceIds.filter((id) => selectedSet.has(id));
+    if (filtered.length !== selectedInfoSourceIds.length) {
+      form.setValue("infoSourceIds", filtered, { shouldValidate: true });
+    }
+  }, [form, selectedInfoSourceIds, selectedSourceIds]);
 
   return (
     <form
@@ -441,6 +480,28 @@ export function ProfileForm({
               <span className="text-xs text-[var(--muted-foreground)]">{source.id}</span>
             </label>
           ))}
+        </div>
+      </div>
+
+      <div>
+        <Label>Sub Info Sources</Label>
+        <p className="mb-2 text-xs text-[var(--muted-foreground)]">
+          Select sources used for traffic/expiry aggregation. None selected means
+          <code className="ml-1">append_info=false</code>.
+        </p>
+        <div className="grid gap-2 rounded-md border border-[var(--border)] p-3 md:grid-cols-2">
+          {sources
+            .filter((source) => selectedSourceIds.includes(source.id))
+            .map((source) => (
+              <label key={source.id} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={selectedInfoSourceIds.includes(source.id)}
+                  onChange={() => toggleInfoSource(source.id)}
+                />
+                <span>{source.name}</span>
+                <span className="text-xs text-[var(--muted-foreground)]">{source.id}</span>
+              </label>
+            ))}
         </div>
       </div>
 

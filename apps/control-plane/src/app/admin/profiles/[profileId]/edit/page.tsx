@@ -14,6 +14,7 @@ import {
 } from "@/app/admin/_lib/api";
 import { InlineError, InlineSuccess, PageTitle } from "@/app/admin/_components/common";
 import {
+  buildOrderedSourceIdsFromForm,
   buildConverterOptionsFromForm,
   ProfileForm,
   type ProfileFormValue,
@@ -56,7 +57,7 @@ export default function EditProfilePage() {
         enabled: value.enabled,
         target: value.target,
         templateId: value.templateId,
-        sourceIds: value.sourceIds,
+        sourceIds: buildOrderedSourceIdsFromForm(value),
         converterOptions: buildConverterOptionsFromForm(value),
         notes: value.notes.trim(),
       });
