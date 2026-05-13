@@ -4,6 +4,7 @@ import type {
   AliasMapping,
   Profile,
   Source,
+  TargetType,
   Template,
 } from "@/modules/subscription/domain/entities";
 import { assertAlias } from "@/modules/subscription/domain/rules";
@@ -51,6 +52,49 @@ type CacheHitState = "miss" | "hit" | "stale";
 const SUB_CACHE_FRESH_SECONDS_DEFAULT = 300;
 const SUB_CACHE_STALE_SECONDS_DEFAULT = 3600;
 const SUB_CACHE_MIN_TTL_SECONDS = 60;
+const SOURCE_UA_HEADER = "x-source-user-agent";
+
+const SOURCE_UA_BY_TARGET: Partial<Record<TargetType, string>> = {
+  clash: "clash.meta",
+  clashr: "clash.meta",
+  mixed: "clash.meta",
+  singbox: "sing-box",
+  surge: "Surge",
+  quanx: "Quantumult X",
+  quan: "Quantumult",
+  loon: "Loon",
+};
+
+function sanitizeHeaderValue(value: string | undefined | null): string | undefined {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return undefined;
+  }
+  if (normalized.includes("\r") || normalized.includes("\n")) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function envKeyForTargetUa(target: TargetType): string {
+  return `SUB_SOURCE_UA_TARGET_${target.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+}
+
+function resolveSourceUserAgent(target: TargetType): string {
+  const byTargetEnv = sanitizeHeaderValue(process.env[envKeyForTargetUa(target)]);
+  if (byTargetEnv) {
+    return byTargetEnv;
+  }
+  const globalDefault = sanitizeHeaderValue(process.env.SUB_SOURCE_UA_DEFAULT);
+  if (globalDefault) {
+    return globalDefault;
+  }
+  const byTargetDefault = sanitizeHeaderValue(SOURCE_UA_BY_TARGET[target]);
+  if (byTargetDefault) {
+    return byTargetDefault;
+  }
+  return "clash.meta";
+}
 
 function resolveTemplateUrl(templateRefRaw: string): string {
   const templateRef = templateRefRaw.trim();
@@ -162,6 +206,10 @@ async function proxyConverter(request: Request, url: URL): Promise<Response> {
   if (ua) {
     passthroughHeaders.set("user-agent", ua);
   }
+  const sourceUa = sanitizeHeaderValue(request.headers.get(SOURCE_UA_HEADER));
+  if (sourceUa) {
+    passthroughHeaders.set(SOURCE_UA_HEADER, sourceUa);
+  }
   try {
     return await service.fetch(url.toString(), {
       method: "GET",
@@ -233,7 +281,7 @@ function getCachePolicy(): {
   };
 }
 
-function buildSignature(resolved: ResolvedAlias): string {
+function buildSignature(resolved: ResolvedAlias, sourceUserAgent: string): string {
   const options = Object.entries(resolved.profile.converterOptions ?? {})
     .filter(([, value]) => {
       if (value === undefined || value === null) {
@@ -262,6 +310,7 @@ function buildSignature(resolved: ResolvedAlias): string {
     `templateRef=${resolved.template.ref}`,
     `sourceRefs=${sourceRefs}`,
     `options=${options}`,
+    `sourceUserAgent=${sourceUserAgent}`,
   ].join("\n");
 }
 
@@ -298,11 +347,18 @@ async function refreshCacheInBackground(
   request: Request,
   alias: string,
   signature: string,
+  sourceUserAgent: string,
   upstreamUrl: URL,
   ttlSeconds: number
 ): Promise<void> {
   try {
-    const upstream = await proxyConverter(request, upstreamUrl);
+    const proxyHeaders = new Headers(request.headers);
+    proxyHeaders.set(SOURCE_UA_HEADER, sourceUserAgent);
+    const proxyRequest = new Request(request.url, {
+      method: request.method,
+      headers: proxyHeaders,
+    });
+    const upstream = await proxyConverter(proxyRequest, upstreamUrl);
     const status = upstream.status;
     const body = await upstream.text();
     if (!shouldCacheResponse(status)) {
@@ -327,10 +383,17 @@ async function fetchAndBuildResponse(
   request: Request,
   alias: string,
   signature: string,
+  sourceUserAgent: string,
   upstreamUrl: URL,
   ttlSeconds: number
 ): Promise<{ response: NextResponse; status: number; resultBytes: number }> {
-  const upstream = await proxyConverter(request, upstreamUrl);
+  const proxyHeaders = new Headers(request.headers);
+  proxyHeaders.set(SOURCE_UA_HEADER, sourceUserAgent);
+  const proxyRequest = new Request(request.url, {
+    method: request.method,
+    headers: proxyHeaders,
+  });
+  const upstream = await proxyConverter(proxyRequest, upstreamUrl);
   const body = await upstream.text();
   const status = upstream.status;
   const resultBytes = new TextEncoder().encode(body).length;
@@ -408,7 +471,8 @@ export async function renderAliasSubscription(
       resolved.template,
       resolved.sources.map((s) => s.url)
     );
-    const signature = buildSignature(resolved);
+    const sourceUserAgent = resolveSourceUserAgent(resolved.profile.target);
+    const signature = buildSignature(resolved, sourceUserAgent);
     const cachePolicy = getCachePolicy();
     const nowMs = Date.now();
     const cache = await readCache(resolved.alias.alias);
@@ -449,6 +513,7 @@ export async function renderAliasSubscription(
               request,
               resolved.alias.alias,
               signature,
+              sourceUserAgent,
               upstreamUrl,
               cachePolicy.ttlSeconds
             )
@@ -461,6 +526,7 @@ export async function renderAliasSubscription(
           request,
           resolved.alias.alias,
           signature,
+          sourceUserAgent,
           upstreamUrl,
           cachePolicy.ttlSeconds
         );
@@ -473,6 +539,7 @@ export async function renderAliasSubscription(
         request,
         resolved.alias.alias,
         signature,
+        sourceUserAgent,
         upstreamUrl,
         cachePolicy.ttlSeconds
       );
