@@ -1,8 +1,10 @@
 use crate::models::{Proxy, ProxyType};
 use fancy_regex::Regex as FancyRegex;
 use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 lazy_static! {
     static ref GROUPID_REGEX: Regex =
@@ -33,6 +35,11 @@ lazy_static! {
         m
     };
 }
+
+const REGEX_CACHE_MAX_SIZE: usize = 1024;
+
+static REGEX_CACHE: Lazy<Mutex<HashMap<String, CompiledRegex>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Match a rule against a proxy node
 ///
@@ -227,7 +234,7 @@ pub fn reg_find(text: &str, pattern: &str) -> bool {
         return true;
     }
 
-    compile_ci_regex(pattern, false).is_some_and(|re| re.is_match(text))
+    get_cached_ci_regex(pattern, false).is_some_and(|re| re.is_match(text))
 }
 
 /// Check if a string fully matches a regular expression pattern
@@ -244,7 +251,7 @@ pub fn reg_match(text: &str, pattern: &str) -> bool {
         return true;
     }
 
-    compile_ci_regex(pattern, true).is_some_and(|re| re.is_match(text))
+    get_cached_ci_regex(pattern, true).is_some_and(|re| re.is_match(text))
 }
 
 #[derive(Debug, Clone)]
@@ -291,6 +298,27 @@ fn compile_ci_regex(pattern: &str, full_match: bool) -> Option<CompiledRegex> {
     } else {
         FancyRegex::new(&full_pattern).ok().map(CompiledRegex::Fancy)
     }
+}
+
+fn get_cached_ci_regex(pattern: &str, full_match: bool) -> Option<CompiledRegex> {
+    let key = format!("{}:{}", if full_match { "full" } else { "find" }, pattern);
+
+    if let Ok(cache) = REGEX_CACHE.lock() {
+        if let Some(cached) = cache.get(&key) {
+            return Some(cached.clone());
+        }
+    }
+
+    let compiled = compile_ci_regex(pattern, full_match)?;
+
+    if let Ok(mut cache) = REGEX_CACHE.lock() {
+        if cache.len() >= REGEX_CACHE_MAX_SIZE {
+            cache.clear();
+        }
+        cache.insert(key, compiled.clone());
+    }
+
+    Some(compiled)
 }
 
 #[derive(Debug, Clone)]
