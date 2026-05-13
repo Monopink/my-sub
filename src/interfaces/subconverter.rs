@@ -870,10 +870,11 @@ pub async fn subconverter(mut config: SubconverterConfig) -> Result<Subconverter
         info!("Refreshing rulesets with custom configuration");
         refresh_rulesets(&config.ruleset_configs, &mut ruleset_content).await;
 
-        // Prepend proxy direct ruleset if needed
+        // Prepend proxy direct ruleset if enabled
         if global.prepend_proxy_direct_ruleset {
             prepend_proxy_direct_ruleset(&mut ruleset_content, &nodes);
         }
+
     }
 
     // Generate output based on target
