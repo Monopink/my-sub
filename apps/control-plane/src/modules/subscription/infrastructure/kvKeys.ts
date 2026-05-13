@@ -4,5 +4,6 @@ export const KV_KEYS = {
   source: (id: string) => `source:${id}`,
   template: (id: string) => `template:${id}`,
   alias: (alias: string) => `alias:${alias}`,
+  subCache: (alias: string) => `cache:sub:${alias}`,
   pullLog: (date: string, id: string) => `log:pull:${date}:${id}`,
 } as const;

@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { Profile, Template } from "@/modules/subscription/domain/entities";
+import type {
+  AliasMapping,
+  Profile,
+  Source,
+  Template,
+} from "@/modules/subscription/domain/entities";
 import { assertAlias } from "@/modules/subscription/domain/rules";
+import { kvGetJson, kvSetJson } from "@/modules/subscription/infrastructure/kvClient";
+import { KV_KEYS } from "@/modules/subscription/infrastructure/kvKeys";
 import { clientIpFromHeaders } from "@/modules/subscription/interface/http";
 import { getSubscriptionService } from "@/modules/subscription/interface/container";
 
@@ -21,6 +28,29 @@ function fail(message: string, status = 400, details: unknown = null): NextRespo
 function notFoundResponse(): NextResponse {
   return new NextResponse("Not Found", { status: 404 });
 }
+
+type ResolvedAlias = {
+  alias: AliasMapping;
+  profile: Profile;
+  template: Template;
+  sources: Source[];
+};
+
+type SubscriptionCacheRecord = {
+  schemaVersion: 1;
+  signature: string;
+  body: string;
+  status: number;
+  contentType: string;
+  subscriptionUserinfo?: string;
+  updatedAtMs: number;
+};
+
+type CacheHitState = "miss" | "hit" | "stale";
+
+const SUB_CACHE_FRESH_SECONDS_DEFAULT = 300;
+const SUB_CACHE_STALE_SECONDS_DEFAULT = 3600;
+const SUB_CACHE_MIN_TTL_SECONDS = 60;
 
 function resolveTemplateUrl(templateRefRaw: string): string {
   const templateRef = templateRefRaw.trim();
@@ -150,15 +180,178 @@ async function proxyConverter(request: Request, url: URL): Promise<Response> {
 }
 
 function copyResponseHeaders(upstream: Response, body: string): Headers {
-  const headers = new Headers();
   const contentType = upstream.headers.get("content-type");
-  headers.set("content-type", contentType ?? "text/plain; charset=utf-8");
   const subscriptionUserinfo = upstream.headers.get("subscription-userinfo");
-  if (subscriptionUserinfo) {
+  return createSubscriptionHeaders(
+    body,
+    contentType ?? "text/plain; charset=utf-8",
+    subscriptionUserinfo
+  );
+}
+
+function createSubscriptionHeaders(
+  body: string,
+  contentType: string,
+  subscriptionUserinfo?: string | null
+): Headers {
+  const headers = new Headers();
+  headers.set("content-type", contentType);
+  if (subscriptionUserinfo && subscriptionUserinfo.trim()) {
     headers.set("subscription-userinfo", subscriptionUserinfo);
   }
   headers.set("content-length", new TextEncoder().encode(body).length.toString());
   return headers;
+}
+
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(raw ?? "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function getCachePolicy(): {
+  freshMs: number;
+  staleMs: number;
+  ttlSeconds: number;
+} {
+  const freshSeconds = parsePositiveInt(
+    process.env.SUB_CACHE_FRESH_SECONDS,
+    SUB_CACHE_FRESH_SECONDS_DEFAULT
+  );
+  const staleSeconds = parsePositiveInt(
+    process.env.SUB_CACHE_STALE_SECONDS,
+    SUB_CACHE_STALE_SECONDS_DEFAULT
+  );
+  const normalizedStaleSeconds = Math.max(staleSeconds, freshSeconds);
+  const ttlSeconds = Math.max(normalizedStaleSeconds + 120, SUB_CACHE_MIN_TTL_SECONDS);
+  return {
+    freshMs: freshSeconds * 1000,
+    staleMs: normalizedStaleSeconds * 1000,
+    ttlSeconds,
+  };
+}
+
+function buildSignature(resolved: ResolvedAlias): string {
+  const options = Object.entries(resolved.profile.converterOptions ?? {})
+    .filter(([, value]) => {
+      if (value === undefined || value === null) {
+        return false;
+      }
+      if (typeof value === "string") {
+        return value.trim().length > 0;
+      }
+      return true;
+    })
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join("&");
+
+  const sourceRefs = resolved.sources
+    .map((source) => `${source.id}|${source.updatedAt}|${source.url}`)
+    .join("||");
+
+  return [
+    `alias=${resolved.alias.alias}`,
+    `profile=${resolved.profile.id}`,
+    `profileUpdatedAt=${resolved.profile.updatedAt}`,
+    `target=${resolved.profile.target}`,
+    `template=${resolved.template.id}`,
+    `templateUpdatedAt=${resolved.template.updatedAt}`,
+    `templateRef=${resolved.template.ref}`,
+    `sourceRefs=${sourceRefs}`,
+    `options=${options}`,
+  ].join("\n");
+}
+
+function withCacheHeader(headers: Headers, state: CacheHitState): Headers {
+  const nextHeaders = new Headers(headers);
+  nextHeaders.set("x-sub-cache", state);
+  return nextHeaders;
+}
+
+function shouldCacheResponse(status: number): boolean {
+  return status >= 200 && status < 400;
+}
+
+async function readCache(alias: string): Promise<SubscriptionCacheRecord | null> {
+  const cached = await kvGetJson<SubscriptionCacheRecord>(KV_KEYS.subCache(alias));
+  if (!cached || cached.schemaVersion !== 1 || !cached.body) {
+    return null;
+  }
+  if (typeof cached.updatedAtMs !== "number" || !Number.isFinite(cached.updatedAtMs)) {
+    return null;
+  }
+  return cached;
+}
+
+async function writeCache(
+  alias: string,
+  record: SubscriptionCacheRecord,
+  ttlSeconds: number
+): Promise<void> {
+  await kvSetJson(KV_KEYS.subCache(alias), record, ttlSeconds);
+}
+
+async function refreshCacheInBackground(
+  request: Request,
+  alias: string,
+  signature: string,
+  upstreamUrl: URL,
+  ttlSeconds: number
+): Promise<void> {
+  try {
+    const upstream = await proxyConverter(request, upstreamUrl);
+    const status = upstream.status;
+    const body = await upstream.text();
+    if (!shouldCacheResponse(status)) {
+      return;
+    }
+    const record: SubscriptionCacheRecord = {
+      schemaVersion: 1,
+      signature,
+      body,
+      status,
+      contentType: upstream.headers.get("content-type") ?? "text/plain; charset=utf-8",
+      subscriptionUserinfo: upstream.headers.get("subscription-userinfo") ?? undefined,
+      updatedAtMs: Date.now(),
+    };
+    await writeCache(alias, record, ttlSeconds);
+  } catch (error) {
+    console.error("[sub-cache] background refresh failed", alias, error);
+  }
+}
+
+async function fetchAndBuildResponse(
+  request: Request,
+  alias: string,
+  signature: string,
+  upstreamUrl: URL,
+  ttlSeconds: number
+): Promise<{ response: NextResponse; status: number; resultBytes: number }> {
+  const upstream = await proxyConverter(request, upstreamUrl);
+  const body = await upstream.text();
+  const status = upstream.status;
+  const resultBytes = new TextEncoder().encode(body).length;
+  const headers = withCacheHeader(copyResponseHeaders(upstream, body), "miss");
+  if (shouldCacheResponse(status)) {
+    const record: SubscriptionCacheRecord = {
+      schemaVersion: 1,
+      signature,
+      body,
+      status,
+      contentType: upstream.headers.get("content-type") ?? "text/plain; charset=utf-8",
+      subscriptionUserinfo: upstream.headers.get("subscription-userinfo") ?? undefined,
+      updatedAtMs: Date.now(),
+    };
+    await writeCache(alias, record, ttlSeconds);
+  }
+  return {
+    response: new NextResponse(body, { status, headers }),
+    status,
+    resultBytes,
+  };
 }
 
 export async function renderAliasSubscription(
@@ -215,9 +408,78 @@ export async function renderAliasSubscription(
       resolved.template,
       resolved.sources.map((s) => s.url)
     );
-    const upstream = await proxyConverter(request, upstreamUrl);
-    const body = await upstream.text();
-    const status = upstream.status;
+    const signature = buildSignature(resolved);
+    const cachePolicy = getCachePolicy();
+    const nowMs = Date.now();
+    const cache = await readCache(resolved.alias.alias);
+    let status: number;
+    let resultBytes: number;
+    let response: NextResponse;
+
+    if (cache && cache.signature === signature) {
+      const ageMs = nowMs - cache.updatedAtMs;
+      if (ageMs <= cachePolicy.freshMs) {
+        const headers = withCacheHeader(
+          createSubscriptionHeaders(
+            cache.body,
+            cache.contentType,
+            cache.subscriptionUserinfo
+          ),
+          "hit"
+        );
+        status = cache.status;
+        resultBytes = new TextEncoder().encode(cache.body).length;
+        response = new NextResponse(cache.body, { status, headers });
+      } else if (ageMs <= cachePolicy.staleMs) {
+        const headers = withCacheHeader(
+          createSubscriptionHeaders(
+            cache.body,
+            cache.contentType,
+            cache.subscriptionUserinfo
+          ),
+          "stale"
+        );
+        status = cache.status;
+        resultBytes = new TextEncoder().encode(cache.body).length;
+        response = new NextResponse(cache.body, { status, headers });
+        try {
+          const context = await getCloudflareContext({ async: true });
+          context.ctx.waitUntil(
+            refreshCacheInBackground(
+              request,
+              resolved.alias.alias,
+              signature,
+              upstreamUrl,
+              cachePolicy.ttlSeconds
+            )
+          );
+        } catch (error) {
+          console.error("[sub-cache] waitUntil unavailable", error);
+        }
+      } else {
+        const fetched = await fetchAndBuildResponse(
+          request,
+          resolved.alias.alias,
+          signature,
+          upstreamUrl,
+          cachePolicy.ttlSeconds
+        );
+        status = fetched.status;
+        resultBytes = fetched.resultBytes;
+        response = fetched.response;
+      }
+    } else {
+      const fetched = await fetchAndBuildResponse(
+        request,
+        resolved.alias.alias,
+        signature,
+        upstreamUrl,
+        cachePolicy.ttlSeconds
+      );
+      status = fetched.status;
+      resultBytes = fetched.resultBytes;
+      response = fetched.response;
+    }
 
     await svc.appendPullLog({
       alias: resolved.alias.alias,
@@ -226,14 +488,11 @@ export async function renderAliasSubscription(
       ua,
       status,
       latencyMs: Date.now() - startedAt,
-      resultBytes: new TextEncoder().encode(body).length,
+      resultBytes,
       error: status >= 400 ? `upstream status ${status}` : null,
     });
 
-    return new NextResponse(body, {
-      status,
-      headers: copyResponseHeaders(upstream, body),
-    });
+    return response;
   } catch (error) {
     const timeoutError = error instanceof Error && error.message.includes("converter request timeout");
     const status = timeoutError ? 504 : 500;
