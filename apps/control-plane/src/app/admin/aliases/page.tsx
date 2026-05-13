@@ -59,6 +59,10 @@ export default function AliasesPage() {
     () => profiles.map((item) => ({ id: item.id, label: item.name })),
     [profiles]
   );
+  const profileNameById = useMemo(
+    () => new Map(profiles.map((item) => [item.id, item.name])),
+    [profiles]
+  );
 
   async function refresh() {
     try {
@@ -183,7 +187,7 @@ export default function AliasesPage() {
                 {items.map((item) => (
                   <TR key={item.alias}>
                     <TD>{item.alias}</TD>
-                    <TD>{item.profileId}</TD>
+                    <TD>{profileNameById.get(item.profileId) ?? item.profileId}</TD>
                     <TD>{item.description ?? ""}</TD>
                     <TD>{new Date(item.updatedAt).toLocaleString()}</TD>
                     <TD>
@@ -227,7 +231,7 @@ export default function AliasesPage() {
             <Select id="profileId" {...form.register("profileId")}>
               {profileOptions.map((profile) => (
                 <option key={profile.id} value={profile.id}>
-                  {profile.label} ({profile.id})
+                  {profile.label}
                 </option>
               ))}
             </Select>
