@@ -7,6 +7,7 @@ use worker::*;
 
 static PREF_READY: OnceLock<bool> = OnceLock::new();
 static DEFAULT_PREF_CONTENT: &str = include_str!("../../../base/config/my-sub-pref.ini");
+static SOURCE_UA_HEADER: &str = "x-source-user-agent";
 
 fn error_response(message: &str, status: u16) -> Result<Response> {
     Ok(Response::from_json(&serde_json::json!({ "error": message }))?.with_status(status))
@@ -14,6 +15,13 @@ fn error_response(message: &str, status: u16) -> Result<Response> {
 
 fn build_upstream_request_headers(req: &Request) -> HashMap<String, String> {
     let mut headers = HashMap::new();
+    if let Ok(Some(source_ua)) = req.headers().get(SOURCE_UA_HEADER) {
+        let source_ua = source_ua.trim();
+        if !source_ua.is_empty() {
+            headers.insert("User-Agent".to_string(), source_ua.to_string());
+            return headers;
+        }
+    }
     if let Ok(Some(ua)) = req.headers().get("user-agent") {
         let ua = ua.trim();
         if !ua.is_empty() {
