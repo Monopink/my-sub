@@ -88,6 +88,10 @@ pub struct SubconverterConfig {
     pub template_args: Option<TemplateArgs>,
     /// Request headers
     pub request_headers: Option<HashMap<String, String>>,
+    /// Whether to include aggregated subscription user info in response headers
+    pub append_info: bool,
+    /// Number of leading main source URLs used for user info aggregation
+    pub append_info_n: Option<usize>,
 }
 
 /// Builder for SubconverterConfig
@@ -132,6 +136,8 @@ impl SubconverterConfigBuilder {
                 rule_bases: RuleBases::default(),
                 template_args: None,
                 request_headers: None,
+                append_info: true,
+                append_info_n: None,
             },
         }
     }
@@ -499,6 +505,18 @@ impl SubconverterConfigBuilder {
         self
     }
 
+    /// Set whether to append aggregated subscription user info
+    pub fn append_info(&mut self, append: bool) -> &mut Self {
+        self.config.append_info = append;
+        self
+    }
+
+    /// Set number of leading main sources used for user info aggregation
+    pub fn append_info_n(&mut self, n: Option<usize>) -> &mut Self {
+        self.config.append_info_n = n;
+        self
+    }
+
     /// Build the final configuration
     pub fn build(self) -> Result<SubconverterConfig, String> {
         let config = self.config;
@@ -572,7 +590,7 @@ pub async fn parse_subscription(
     options: ParseOptions,
     group_id: i32,
     request_headers: &Option<HashMap<String, String>>,
-) -> Result<Vec<Proxy>, String> {
+) -> Result<(Vec<Proxy>, Option<String>), String> {
     // Create a new parse settings instance
     let mut parse_settings = ParseSettings::default();
 
@@ -602,13 +620,113 @@ pub async fn parse_subscription(
     // We use group_id = 0 since we don't care about it in this context
     add_nodes(url.to_string(), &mut nodes, group_id, &mut parse_settings).await?;
 
-    Ok(nodes)
+    Ok((nodes, parse_settings.sub_info))
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+struct SubInfoStats {
+    upload: u64,
+    download: u64,
+    total: u64,
+    expire: Option<i64>,
+}
+
+fn parse_sub_info_stats(raw: &str) -> Option<SubInfoStats> {
+    let normalized = raw.replace(';', ",");
+    let mut stats = SubInfoStats::default();
+    let mut has_any = false;
+
+    for part in normalized.split(',') {
+        let item = part.trim();
+        if item.is_empty() {
+            continue;
+        }
+        let mut split = item.splitn(2, '=');
+        let key = split.next().unwrap_or_default().trim().to_ascii_lowercase();
+        let value = split.next().unwrap_or_default().trim();
+        if value.is_empty() {
+            continue;
+        }
+        match key.as_str() {
+            "upload" => {
+                if let Ok(v) = value.parse::<u64>() {
+                    stats.upload = v;
+                    has_any = true;
+                }
+            }
+            "download" => {
+                if let Ok(v) = value.parse::<u64>() {
+                    stats.download = v;
+                    has_any = true;
+                }
+            }
+            "total" => {
+                if let Ok(v) = value.parse::<u64>() {
+                    stats.total = v;
+                    has_any = true;
+                }
+            }
+            "expire" => {
+                if let Ok(v) = value.parse::<i64>() {
+                    stats.expire = Some(v);
+                    has_any = true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if has_any {
+        Some(stats)
+    } else {
+        None
+    }
+}
+
+fn aggregate_sub_info(raw_infos: &[Option<String>], take_n: Option<usize>) -> Option<String> {
+    let limit = take_n.unwrap_or(raw_infos.len()).min(raw_infos.len());
+    if limit == 0 {
+        return None;
+    }
+
+    let mut agg = SubInfoStats::default();
+    let mut seen = false;
+
+    for raw in raw_infos.iter().take(limit).flatten() {
+        if let Some(parsed) = parse_sub_info_stats(raw) {
+            agg.upload = agg.upload.saturating_add(parsed.upload);
+            agg.download = agg.download.saturating_add(parsed.download);
+            agg.total = agg.total.saturating_add(parsed.total);
+            agg.expire = match (agg.expire, parsed.expire) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (None, Some(b)) => Some(b),
+                (Some(a), None) => Some(a),
+                (None, None) => None,
+            };
+            seen = true;
+        }
+    }
+
+    if !seen {
+        return None;
+    }
+
+    let mut out = vec![
+        format!("upload={}", agg.upload),
+        format!("download={}", agg.download),
+        format!("total={}", agg.total),
+    ];
+    if let Some(expire) = agg.expire {
+        out.push(format!("expire={expire}"));
+    }
+    Some(out.join("; "))
 }
 
 /// Process a subscription conversion request
 pub async fn subconverter(mut config: SubconverterConfig) -> Result<SubconverterResult, String> {
     let mut response_headers = HashMap::new();
     let mut nodes = Vec::new();
+    let mut main_source_sub_infos: Vec<Option<String>> = Vec::new();
     let global = Settings::current();
 
     info!(
@@ -631,7 +749,7 @@ pub async fn subconverter(mut config: SubconverterConfig) -> Result<Subconverter
         for url in &config.insert_urls {
             debug!("Parsing insert URL: {}", url);
             match parse_subscription(url, opts.clone(), group_id, &config.request_headers).await {
-                Ok(mut parsed_nodes) => {
+                Ok((mut parsed_nodes, _sub_info)) => {
                     info!("Found {} nodes from insert URL", parsed_nodes.len());
                     insert_nodes.append(&mut parsed_nodes);
                 }
@@ -652,9 +770,10 @@ pub async fn subconverter(mut config: SubconverterConfig) -> Result<Subconverter
     for url in &config.urls {
         debug!("Parsing URL: {}", url);
         match parse_subscription(url, opts.clone(), group_id, &config.request_headers).await {
-            Ok(mut parsed_nodes) => {
+            Ok((mut parsed_nodes, sub_info)) => {
                 info!("Found {} nodes from URL", parsed_nodes.len());
                 nodes.append(&mut parsed_nodes);
+                main_source_sub_infos.push(sub_info);
             }
             Err(e) => {
                 error!("Failed to parse URL '{}': {}", url, e);
@@ -729,9 +848,12 @@ pub async fn subconverter(mut config: SubconverterConfig) -> Result<Subconverter
         .await
         .map_err(|e| e.to_string())?;
 
-    // Pass subscription info if provided
-    if let Some(sub_info) = &config.sub_info {
-        response_headers.insert("Subscription-UserInfo".to_string(), sub_info.clone());
+    if config.append_info {
+        if let Some(sub_info) = aggregate_sub_info(&main_source_sub_infos, config.append_info_n) {
+            response_headers.insert("Subscription-UserInfo".to_string(), sub_info);
+        } else if let Some(sub_info) = &config.sub_info {
+            response_headers.insert("Subscription-UserInfo".to_string(), sub_info.clone());
+        }
     }
 
     // Refresh rulesets if needed

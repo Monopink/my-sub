@@ -151,6 +151,7 @@ function buildConverterUrl(
   setBooleanOption("add_emoji", options.addEmoji);
   setBooleanOption("remove_emoji", options.removeEmoji);
   setBooleanOption("append_type", options.appendType);
+  setBooleanOption("append_info", options.appendInfo);
   setBooleanOption("insert", options.insert);
   setBooleanOption("prepend", options.prepend);
   setBooleanOption("tfo", options.tfo);
@@ -168,6 +169,7 @@ function buildConverterUrl(
 
   setNumberOption("interval", options.interval);
   setNumberOption("ver", options.ver);
+  setNumberOption("append_info_n", options.appendInfoN);
 
   const filename = alias;
   upstream.searchParams.set("filename", filename);

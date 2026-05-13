@@ -109,6 +109,14 @@ pub struct SubconverterQuery {
         deserialize_with = "bool_deserializer::deserialize_option_bool"
     )]
     pub append_type: Option<bool>,
+    /// Whether to include subscription user info in response headers
+    #[serde(
+        default,
+        deserialize_with = "bool_deserializer::deserialize_option_bool"
+    )]
+    pub append_info: Option<bool>,
+    /// Number of leading source subscriptions used for info aggregation
+    pub append_info_n: Option<u32>,
     /// Whether to remove old emoji and add new emoji
     #[serde(
         default,
@@ -407,6 +415,8 @@ pub async fn sub_process(
     template_args.request_params = query.clone();
 
     builder.append_proxy_type(query.append_type.unwrap_or(global.append_type));
+    builder.append_info(query.append_info.unwrap_or(global.append_userinfo));
+    builder.append_info_n(query.append_info_n.map(|v| v as usize));
 
     let mut arg_expand_rulesets = query.expand;
     if target.is_clash() && query.script.is_none() {

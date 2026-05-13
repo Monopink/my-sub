@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createProfile, formatApiError, listSources, listTemplates } from "@/app/admin/_lib/api";
 import { InlineError, PageTitle } from "@/app/admin/_components/common";
 import {
+  buildOrderedSourceIdsFromForm,
   buildConverterOptionsFromForm,
   ProfileForm,
   type ProfileFormValue,
@@ -38,7 +39,7 @@ export default function NewProfilePage() {
         enabled: value.enabled,
         target: value.target,
         templateId: value.templateId,
-        sourceIds: value.sourceIds,
+        sourceIds: buildOrderedSourceIdsFromForm(value),
         converterOptions: buildConverterOptionsFromForm(value),
         notes: value.notes.trim(),
       });
