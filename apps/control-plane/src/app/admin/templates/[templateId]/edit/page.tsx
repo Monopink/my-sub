@@ -44,7 +44,6 @@ export default function EditTemplatePage() {
       setSuccess("");
       const updated = await updateTemplate(templateId, {
         name: value.name.trim(),
-        target: value.target,
         ref: value.ref.trim(),
         enabled: value.enabled,
       });

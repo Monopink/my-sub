@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { Profile, Template } from "@/modules/subscription/domain/entities";
-import { assertAlias, normalizeTarget } from "@/modules/subscription/domain/rules";
+import { assertAlias } from "@/modules/subscription/domain/rules";
 import { clientIpFromHeaders } from "@/modules/subscription/interface/http";
 import { getSubscriptionService } from "@/modules/subscription/interface/container";
 
@@ -46,11 +46,7 @@ function buildConverterUrl(
   sourceUrls: string[]
 ): URL {
   const upstream = new URL("https://converter.internal/sub");
-  const normalizedTarget = normalizeTarget(profile.target);
-  if (!normalizedTarget) {
-    throw new Error(`invalid profile target: ${profile.target}`);
-  }
-  upstream.searchParams.set("target", normalizedTarget);
+  upstream.searchParams.set("target", profile.target);
   upstream.searchParams.set("url", sourceUrls.join("|"));
   upstream.searchParams.set("config", resolveTemplateUrl(template.ref));
 

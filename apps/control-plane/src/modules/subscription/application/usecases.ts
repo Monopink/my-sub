@@ -63,9 +63,6 @@ export class SubscriptionService {
   }
 
   upsertTemplate(input: Partial<Template> & { id: string }): Promise<Template> {
-    if (input.target) {
-      assertTarget(input.target);
-    }
     return this.repository.upsertTemplate(input);
   }
 
@@ -118,11 +115,6 @@ export class SubscriptionService {
     const template = await this.repository.getTemplate(resolvedTemplateId);
     if (!template) {
       throw new Error(`template not found: ${resolvedTemplateId}`);
-    }
-    if (template.target !== resolvedTarget) {
-      throw new Error(
-        `template target mismatch: expected ${resolvedTarget}, got ${template.target}`
-      );
     }
 
     if (input.sourceIds) {
