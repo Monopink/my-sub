@@ -6,7 +6,7 @@ use crate::models::ruleset::{get_ruleset_type_from_url, RulesetContent, RulesetT
 use crate::models::RulesetConfig;
 use crate::utils::file::read_file_async;
 use crate::utils::file_exists;
-use crate::utils::http::{parse_proxy, web_get_async, ProxyConfig};
+use crate::utils::http::{parse_proxy, web_get_content_async, ProxyConfig};
 use crate::utils::memory_cache;
 use crate::Settings;
 
@@ -70,9 +70,9 @@ pub async fn fetch_ruleset(
 /// Helper function to fetch content from URL asynchronously
 async fn fetch_from_url(url: &str, proxy: &ProxyConfig) -> Result<String, String> {
     debug!("Fetching ruleset from URL: {}", url);
-    match web_get_async(url, proxy, None).await {
-        Ok(response) => Ok(response.body),
-        Err(e) => Err(e.message),
+    match web_get_content_async(url, proxy, None).await {
+        Ok(content) => Ok(content),
+        Err(e) => Err(format!("Failed to fetch ruleset from URL {}: {}", url, e)),
     }
 }
 

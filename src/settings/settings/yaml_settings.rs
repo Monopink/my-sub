@@ -70,7 +70,7 @@ fn default_max_rulesets() -> usize {
 }
 
 fn default_max_rules() -> usize {
-    32768
+    0
 }
 
 fn default_max_download_size() -> i64 {
@@ -259,6 +259,7 @@ pub struct AdvancedSettings {
     pub max_allowed_rulesets: usize,
     #[serde(default = "default_max_rules")]
     pub max_allowed_rules: usize,
+    pub prepend_proxy_direct_ruleset: bool,
     #[serde(default = "default_max_download_size")]
     pub max_allowed_download_size: i64,
     pub enable_cache: bool,

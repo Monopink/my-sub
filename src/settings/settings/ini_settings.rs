@@ -158,6 +158,8 @@ pub struct IniSettings {
     #[serde(default = "default_max_rules")]
     pub max_allowed_rules: usize,
     #[serde(default)]
+    pub prepend_proxy_direct_ruleset: bool,
+    #[serde(default)]
     pub script_clean_context: bool,
 
     // Cron system
@@ -243,7 +245,7 @@ fn default_max_rulesets() -> usize {
 }
 
 fn default_max_rules() -> usize {
-    32768
+    0
 }
 
 impl IniSettings {
@@ -547,6 +549,9 @@ impl IniSettings {
                 if let Ok(val) = value.parse() {
                     self.max_allowed_rules = val
                 }
+            }
+            "prepend_proxy_direct_ruleset" => {
+                self.prepend_proxy_direct_ruleset = parse_bool(value)
             }
             "max_allowed_download_size" => {
                 if let Ok(val) = value.parse() {

@@ -99,6 +99,8 @@ impl From<YamlSettings> for Settings {
         settings.max_concur_threads = yaml_settings.advanced.max_concurrent_threads;
         settings.max_allowed_rulesets = yaml_settings.advanced.max_allowed_rulesets;
         settings.max_allowed_rules = yaml_settings.advanced.max_allowed_rules;
+        settings.prepend_proxy_direct_ruleset =
+            yaml_settings.advanced.prepend_proxy_direct_ruleset;
         settings.max_allowed_download_size = yaml_settings.advanced.max_allowed_download_size;
         settings.cache_subscription = yaml_settings.advanced.cache_subscription;
         settings.cache_config = yaml_settings.advanced.cache_config;
@@ -223,6 +225,8 @@ impl From<TomlSettings> for Settings {
         settings.max_concur_threads = toml_settings.advanced.max_concurrent_threads;
         settings.max_allowed_rulesets = toml_settings.advanced.max_allowed_rulesets;
         settings.max_allowed_rules = toml_settings.advanced.max_allowed_rules;
+        settings.prepend_proxy_direct_ruleset =
+            toml_settings.advanced.prepend_proxy_direct_ruleset;
         settings.max_allowed_download_size = toml_settings.advanced.max_allowed_download_size;
         settings.cache_subscription = toml_settings.advanced.cache_subscription;
         settings.cache_config = toml_settings.advanced.cache_config;
@@ -382,6 +386,7 @@ impl From<IniSettings> for Settings {
         settings.max_concur_threads = ini_settings.max_concur_threads;
         settings.max_allowed_rulesets = ini_settings.max_allowed_rulesets;
         settings.max_allowed_rules = ini_settings.max_allowed_rules;
+        settings.prepend_proxy_direct_ruleset = ini_settings.prepend_proxy_direct_ruleset;
         settings.max_allowed_download_size = ini_settings.max_allowed_download_size;
         if ini_settings.enable_cache {
             settings.cache_subscription = ini_settings.cache_subscription;
