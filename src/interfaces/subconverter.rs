@@ -868,7 +868,35 @@ pub async fn subconverter(mut config: SubconverterConfig) -> Result<Subconverter
 
         // Refresh rulesets with custom configuration
         info!("Refreshing rulesets with custom configuration");
-        refresh_rulesets(&config.ruleset_configs, &mut ruleset_content).await;
+        let ruleset_report = refresh_rulesets(&config.ruleset_configs, &mut ruleset_content).await;
+        response_headers.insert(
+            "x-sub-ruleset-total".to_string(),
+            ruleset_report.total.to_string(),
+        );
+        response_headers.insert(
+            "x-sub-ruleset-inline".to_string(),
+            ruleset_report.inline.to_string(),
+        );
+        response_headers.insert(
+            "x-sub-ruleset-fetch-ok".to_string(),
+            ruleset_report.fetch_ok.to_string(),
+        );
+        response_headers.insert(
+            "x-sub-ruleset-fetch-fail".to_string(),
+            ruleset_report.fetch_fail.to_string(),
+        );
+        if ruleset_report.fetch_fail > 0 {
+            let sample = ruleset_report
+                .failed_urls
+                .iter()
+                .take(3)
+                .cloned()
+                .collect::<Vec<String>>()
+                .join("|");
+            if !sample.is_empty() {
+                response_headers.insert("x-sub-ruleset-fail-sample".to_string(), sample);
+            }
+        }
 
         // Prepend proxy direct ruleset if enabled
         if global.prepend_proxy_direct_ruleset {

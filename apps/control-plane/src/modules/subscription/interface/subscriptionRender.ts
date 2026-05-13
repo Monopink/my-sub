@@ -44,15 +44,32 @@ type SubscriptionCacheRecord = {
   status: number;
   contentType: string;
   subscriptionUserinfo?: string;
+  rulesetTotal?: number;
+  rulesetInline?: number;
+  rulesetFetchOk?: number;
+  rulesetFetchFail?: number;
+  rulesetFailSample?: string;
   updatedAtMs: number;
 };
 
 type CacheHitState = "miss" | "hit" | "stale";
+type RulesetDiag = {
+  total?: number;
+  inline?: number;
+  fetchOk?: number;
+  fetchFail?: number;
+  failSample?: string;
+};
 
 const SUB_CACHE_FRESH_SECONDS_DEFAULT = 300;
 const SUB_CACHE_STALE_SECONDS_DEFAULT = 3600;
 const SUB_CACHE_MIN_TTL_SECONDS = 60;
 const SOURCE_UA_HEADER = "x-source-user-agent";
+const RULESET_HEADER_TOTAL = "x-sub-ruleset-total";
+const RULESET_HEADER_INLINE = "x-sub-ruleset-inline";
+const RULESET_HEADER_FETCH_OK = "x-sub-ruleset-fetch-ok";
+const RULESET_HEADER_FETCH_FAIL = "x-sub-ruleset-fetch-fail";
+const RULESET_HEADER_FAIL_SAMPLE = "x-sub-ruleset-fail-sample";
 
 const SOURCE_UA_BY_TARGET: Partial<Record<TargetType, string>> = {
   clash: "clash.meta",
@@ -232,25 +249,117 @@ async function proxyConverter(request: Request, url: URL): Promise<Response> {
 function copyResponseHeaders(upstream: Response, body: string): Headers {
   const contentType = upstream.headers.get("content-type");
   const subscriptionUserinfo = upstream.headers.get("subscription-userinfo");
+  const rulesetDiag = readRulesetDiagFromHeaders(upstream.headers);
   return createSubscriptionHeaders(
     body,
     contentType ?? "text/plain; charset=utf-8",
-    subscriptionUserinfo
+    subscriptionUserinfo,
+    rulesetDiag
   );
 }
 
 function createSubscriptionHeaders(
   body: string,
   contentType: string,
-  subscriptionUserinfo?: string | null
+  subscriptionUserinfo?: string | null,
+  rulesetDiag?: RulesetDiag
 ): Headers {
   const headers = new Headers();
   headers.set("content-type", contentType);
   if (subscriptionUserinfo && subscriptionUserinfo.trim()) {
     headers.set("subscription-userinfo", subscriptionUserinfo);
   }
+  writeRulesetDiagToHeaders(headers, rulesetDiag);
   headers.set("content-length", new TextEncoder().encode(body).length.toString());
   return headers;
+}
+
+function parsePositiveHeaderInt(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function readRulesetDiagFromHeaders(headers: Headers): RulesetDiag | undefined {
+  const total = parsePositiveHeaderInt(headers.get(RULESET_HEADER_TOTAL));
+  const inline = parsePositiveHeaderInt(headers.get(RULESET_HEADER_INLINE));
+  const fetchOk = parsePositiveHeaderInt(headers.get(RULESET_HEADER_FETCH_OK));
+  const fetchFail = parsePositiveHeaderInt(headers.get(RULESET_HEADER_FETCH_FAIL));
+  const failSample = sanitizeHeaderValue(headers.get(RULESET_HEADER_FAIL_SAMPLE));
+  if (
+    total === undefined &&
+    inline === undefined &&
+    fetchOk === undefined &&
+    fetchFail === undefined &&
+    !failSample
+  ) {
+    return undefined;
+  }
+  return { total, inline, fetchOk, fetchFail, failSample };
+}
+
+function readRulesetDiagFromCache(cache: SubscriptionCacheRecord): RulesetDiag | undefined {
+  if (
+    cache.rulesetTotal === undefined &&
+    cache.rulesetInline === undefined &&
+    cache.rulesetFetchOk === undefined &&
+    cache.rulesetFetchFail === undefined &&
+    !cache.rulesetFailSample
+  ) {
+    return undefined;
+  }
+  return {
+    total: cache.rulesetTotal,
+    inline: cache.rulesetInline,
+    fetchOk: cache.rulesetFetchOk,
+    fetchFail: cache.rulesetFetchFail,
+    failSample: cache.rulesetFailSample,
+  };
+}
+
+function writeRulesetDiagToHeaders(headers: Headers, rulesetDiag?: RulesetDiag): void {
+  if (!rulesetDiag) {
+    return;
+  }
+  if (rulesetDiag.total !== undefined) {
+    headers.set(RULESET_HEADER_TOTAL, String(rulesetDiag.total));
+  }
+  if (rulesetDiag.inline !== undefined) {
+    headers.set(RULESET_HEADER_INLINE, String(rulesetDiag.inline));
+  }
+  if (rulesetDiag.fetchOk !== undefined) {
+    headers.set(RULESET_HEADER_FETCH_OK, String(rulesetDiag.fetchOk));
+  }
+  if (rulesetDiag.fetchFail !== undefined) {
+    headers.set(RULESET_HEADER_FETCH_FAIL, String(rulesetDiag.fetchFail));
+  }
+  if (rulesetDiag.failSample) {
+    headers.set(RULESET_HEADER_FAIL_SAMPLE, rulesetDiag.failSample);
+  }
+}
+
+function rulesetDiagFromUpstreamResponse(upstream: Response): RulesetDiag | undefined {
+  return readRulesetDiagFromHeaders(upstream.headers);
+}
+
+function buildPullLogError(status: number, rulesetDiag?: RulesetDiag): string | null {
+  const fetchFail = rulesetDiag?.fetchFail ?? 0;
+  if (fetchFail > 0) {
+    const total = rulesetDiag?.total;
+    const totalLabel = typeof total === "number" ? String(total) : "?";
+    const sample = rulesetDiag?.failSample ? ` sample=${rulesetDiag.failSample}` : "";
+    const diag = `ruleset partial failure: fail=${fetchFail}/${totalLabel}${sample}`;
+    if (status >= 400) {
+      return `upstream status ${status}; ${diag}`;
+    }
+    return diag;
+  }
+  return status >= 400 ? `upstream status ${status}` : null;
 }
 
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
@@ -363,6 +472,7 @@ async function refreshCacheInBackground(
     const upstream = await proxyConverter(proxyRequest, upstreamUrl);
     const status = upstream.status;
     const body = await upstream.text();
+    const rulesetDiag = rulesetDiagFromUpstreamResponse(upstream);
     if (!shouldCacheResponse(status)) {
       return;
     }
@@ -373,6 +483,11 @@ async function refreshCacheInBackground(
       status,
       contentType: upstream.headers.get("content-type") ?? "text/plain; charset=utf-8",
       subscriptionUserinfo: upstream.headers.get("subscription-userinfo") ?? undefined,
+      rulesetTotal: rulesetDiag?.total,
+      rulesetInline: rulesetDiag?.inline,
+      rulesetFetchOk: rulesetDiag?.fetchOk,
+      rulesetFetchFail: rulesetDiag?.fetchFail,
+      rulesetFailSample: rulesetDiag?.failSample,
       updatedAtMs: Date.now(),
     };
     await writeCache(alias, record, ttlSeconds);
@@ -388,7 +503,7 @@ async function fetchAndBuildResponse(
   sourceUserAgent: string,
   upstreamUrl: URL,
   ttlSeconds: number
-): Promise<{ response: NextResponse; status: number; resultBytes: number }> {
+): Promise<{ response: NextResponse; status: number; resultBytes: number; rulesetDiag?: RulesetDiag }> {
   const proxyHeaders = new Headers(request.headers);
   proxyHeaders.set(SOURCE_UA_HEADER, sourceUserAgent);
   const proxyRequest = new Request(request.url, {
@@ -399,6 +514,7 @@ async function fetchAndBuildResponse(
   const body = await upstream.text();
   const status = upstream.status;
   const resultBytes = new TextEncoder().encode(body).length;
+  const rulesetDiag = rulesetDiagFromUpstreamResponse(upstream);
   const headers = withCacheHeader(copyResponseHeaders(upstream, body), "miss");
   if (shouldCacheResponse(status)) {
     const record: SubscriptionCacheRecord = {
@@ -408,6 +524,11 @@ async function fetchAndBuildResponse(
       status,
       contentType: upstream.headers.get("content-type") ?? "text/plain; charset=utf-8",
       subscriptionUserinfo: upstream.headers.get("subscription-userinfo") ?? undefined,
+      rulesetTotal: rulesetDiag?.total,
+      rulesetInline: rulesetDiag?.inline,
+      rulesetFetchOk: rulesetDiag?.fetchOk,
+      rulesetFetchFail: rulesetDiag?.fetchFail,
+      rulesetFailSample: rulesetDiag?.failSample,
       updatedAtMs: Date.now(),
     };
     await writeCache(alias, record, ttlSeconds);
@@ -416,6 +537,7 @@ async function fetchAndBuildResponse(
     response: new NextResponse(body, { status, headers }),
     status,
     resultBytes,
+    rulesetDiag,
   };
 }
 
@@ -481,15 +603,18 @@ export async function renderAliasSubscription(
     let status: number;
     let resultBytes: number;
     let response: NextResponse;
+    let rulesetDiag: RulesetDiag | undefined;
 
     if (cache && cache.signature === signature) {
       const ageMs = nowMs - cache.updatedAtMs;
       if (ageMs <= cachePolicy.freshMs) {
+        rulesetDiag = readRulesetDiagFromCache(cache);
         const headers = withCacheHeader(
           createSubscriptionHeaders(
             cache.body,
             cache.contentType,
-            cache.subscriptionUserinfo
+            cache.subscriptionUserinfo,
+            rulesetDiag
           ),
           "hit"
         );
@@ -497,11 +622,13 @@ export async function renderAliasSubscription(
         resultBytes = new TextEncoder().encode(cache.body).length;
         response = new NextResponse(cache.body, { status, headers });
       } else if (ageMs <= cachePolicy.staleMs) {
+        rulesetDiag = readRulesetDiagFromCache(cache);
         const headers = withCacheHeader(
           createSubscriptionHeaders(
             cache.body,
             cache.contentType,
-            cache.subscriptionUserinfo
+            cache.subscriptionUserinfo,
+            rulesetDiag
           ),
           "stale"
         );
@@ -535,6 +662,7 @@ export async function renderAliasSubscription(
         status = fetched.status;
         resultBytes = fetched.resultBytes;
         response = fetched.response;
+        rulesetDiag = fetched.rulesetDiag;
       }
     } else {
       const fetched = await fetchAndBuildResponse(
@@ -548,6 +676,7 @@ export async function renderAliasSubscription(
       status = fetched.status;
       resultBytes = fetched.resultBytes;
       response = fetched.response;
+      rulesetDiag = fetched.rulesetDiag;
     }
 
     await svc.appendPullLog({
@@ -558,7 +687,7 @@ export async function renderAliasSubscription(
       status,
       latencyMs: Date.now() - startedAt,
       resultBytes,
-      error: status >= 400 ? `upstream status ${status}` : null,
+      error: buildPullLogError(status, rulesetDiag),
     });
 
     return response;
