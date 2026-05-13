@@ -3,6 +3,7 @@
 DOMAIN-SUFFIX,download.adobe.com
 
 # Steam
+DOMAIN,egdownload.fastly-edge.com
 DOMAIN,steamcdn-a.akamaihd.net
 DOMAIN-SUFFIX,cm.steampowered
 DOMAIN-SUFFIX,steamserver.net
