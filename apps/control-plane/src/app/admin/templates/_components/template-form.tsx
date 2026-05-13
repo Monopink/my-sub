@@ -4,16 +4,13 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Template } from "@/modules/subscription/domain/entities";
-import { SUPPORTED_TARGETS } from "@/modules/subscription/domain/entities";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 
 const schema = z.object({
   name: z.string().min(1, "name is required"),
-  target: z.enum(SUPPORTED_TARGETS),
   ref: z.string().min(1, "ref is required"),
   enabled: z.boolean(),
 });
@@ -35,7 +32,6 @@ export function TemplateForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: initial?.name ?? "",
-      target: initial?.target ?? "clash",
       ref: initial?.ref ?? "",
       enabled: initial?.enabled ?? true,
     },
@@ -51,16 +47,6 @@ export function TemplateForm({
       <div>
         <Label htmlFor="name">Name</Label>
         <Input id="name" {...form.register("name")} />
-      </div>
-      <div>
-        <Label htmlFor="target">Target</Label>
-        <Select id="target" {...form.register("target")}>
-          {SUPPORTED_TARGETS.map((target) => (
-            <option key={target} value={target}>
-              {target}
-            </option>
-          ))}
-        </Select>
       </div>
       <div>
         <Label htmlFor="ref">Ref</Label>

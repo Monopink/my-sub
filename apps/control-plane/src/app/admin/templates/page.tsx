@@ -82,7 +82,6 @@ export default function TemplatesPage() {
               <THead>
                 <TR>
                   <TH>Name</TH>
-                  <TH>Target</TH>
                   <TH>Ref</TH>
                   <TH>Enabled</TH>
                   <TH>Updated At</TH>
@@ -96,7 +95,6 @@ export default function TemplatesPage() {
                       <div className="font-medium">{item.name}</div>
                       <div className="text-xs text-[var(--muted-foreground)]">{item.id}</div>
                     </TD>
-                    <TD>{item.target}</TD>
                     <TD className="max-w-sm break-all">{item.ref}</TD>
                     <TD>{item.enabled ? "yes" : "no"}</TD>
                     <TD>{new Date(item.updatedAt).toLocaleString()}</TD>

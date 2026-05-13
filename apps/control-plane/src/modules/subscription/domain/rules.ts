@@ -1,30 +1,6 @@
-import { SUPPORTED_TARGETS, type TargetType } from "@/modules/subscription/domain/entities";
+import { SUPPORTED_TARGETS } from "@/modules/subscription/domain/entities";
 
 const ALIAS_REGEX = /^[a-z0-9-_]+$/;
-
-const TARGET_ALIASES: Record<string, TargetType> = {
-  mihomo: "clash",
-  "clash-meta": "clash",
-  "clash_meta": "clash",
-  "clash.meta": "clash",
-  "sing-box": "singbox",
-  quantumult: "quan",
-  quantumultx: "quanx",
-  shadowrocket: "mixed",
-  surfboardios: "surfboard",
-};
-
-export function normalizeTarget(target: string | null | undefined): TargetType | null {
-  const normalized = target?.trim().toLowerCase();
-  if (!normalized) {
-    return null;
-  }
-  const aliased = TARGET_ALIASES[normalized] ?? normalized;
-  if (SUPPORTED_TARGETS.includes(aliased as TargetType)) {
-    return aliased as TargetType;
-  }
-  return null;
-}
 
 export function assertAlias(alias: string): void {
   if (!alias) {
@@ -42,7 +18,7 @@ export function assertId(id: string, fieldName: string): void {
 }
 
 export function assertTarget(target: string): void {
-  if (!normalizeTarget(target)) {
+  if (!SUPPORTED_TARGETS.includes(target as (typeof SUPPORTED_TARGETS)[number])) {
     throw new Error(`target must be one of: ${SUPPORTED_TARGETS.join(", ")}`);
   }
 }

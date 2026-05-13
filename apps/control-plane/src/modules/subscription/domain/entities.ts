@@ -72,7 +72,6 @@ export interface Template {
   id: string;
   name: string;
   enabled: boolean;
-  target: TargetType;
   ref: string;
   updatedAt: string;
 }

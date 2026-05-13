@@ -295,9 +295,9 @@ export function ProfileForm({
   onSubmit: (value: ProfileFormValue) => Promise<void>;
 }) {
   const defaultTarget = initial?.target ?? "clash";
-  const targetTemplates = useMemo(
-    () => templates.filter((item) => item.target === defaultTarget && item.enabled),
-    [templates, defaultTarget]
+  const enabledTemplates = useMemo(
+    () => templates.filter((item) => item.enabled),
+    [templates]
   );
 
   const form = useForm<ProfileFormValue>({
@@ -306,7 +306,7 @@ export function ProfileForm({
       name: initial?.name ?? "",
       enabled: initial?.enabled ?? true,
       target: defaultTarget,
-      templateId: initial?.templateId ?? targetTemplates[0]?.id ?? "",
+      templateId: initial?.templateId ?? enabledTemplates[0]?.id ?? "",
       sourceIds: initial?.sourceIds ?? [],
 
       includeEnabled: optionEnabled(initial?.converterOptions.include),
@@ -370,12 +370,8 @@ export function ProfileForm({
     },
   });
 
-  const selectedTarget = form.watch("target");
   const selectedTemplateId = form.watch("templateId");
-  const templateOptions = useMemo(
-    () => templates.filter((item) => item.target === selectedTarget && item.enabled),
-    [templates, selectedTarget]
-  );
+  const templateOptions = enabledTemplates;
 
   const selectedSourceIds = form.watch("sourceIds");
 
