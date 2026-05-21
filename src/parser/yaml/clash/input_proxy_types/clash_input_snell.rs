@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Deserialize;
+use super::super::de::deserialize_port;
 
 use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;
@@ -12,6 +13,7 @@ use crate::utils::tribool::OptionSetExt;
 pub struct ClashInputSnell {
     name: String,
     server: String,
+    #[serde(deserialize_with = "deserialize_port")]
     port: u16,
     psk: String,
     #[serde(default)]
@@ -92,3 +94,4 @@ impl Into<Proxy> for ClashInputSnell {
         proxy
     }
 }
+

@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use serde::Deserialize;
+use super::super::de::deserialize_port;
 
 use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;
@@ -12,6 +13,7 @@ use crate::utils::tribool::OptionSetExt;
 pub struct ClashInputWireGuard {
     name: String,
     server: String,
+    #[serde(deserialize_with = "deserialize_port")]
     port: u16,
     #[serde(alias = "private-key")]
     private_key: String,
@@ -119,3 +121,4 @@ impl Into<Proxy> for ClashInputWireGuard {
         proxy
     }
 }
+

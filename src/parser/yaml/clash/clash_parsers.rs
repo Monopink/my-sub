@@ -1,5 +1,6 @@
 use crate::models::Proxy;
 use crate::parser::yaml::clash::clash_proxy_types::ClashProxyYamlInput;
+use log::warn;
 
 use super::ClashYamlInput;
 
@@ -19,7 +20,15 @@ pub fn parse_clash_yaml(content: &str) -> Result<Vec<Proxy>, String> {
 
     let mut proxies = Vec::new();
 
-    for proxy in clash_input.extract_proxies() {
+    for (index, raw_proxy) in clash_input.extract_proxies().into_iter().enumerate() {
+        let proxy = match serde_yaml::from_value::<ClashProxyYamlInput>(raw_proxy) {
+            Ok(value) => value,
+            Err(e) => {
+                warn!("Skipping invalid Clash proxy at index {}: {}", index, e);
+                continue;
+            }
+        };
+
         match proxy {
             ClashProxyYamlInput::Shadowsocks(ss) => {
                 proxies.push(ss.into());
@@ -59,9 +68,60 @@ pub fn parse_clash_yaml(content: &str) -> Result<Vec<Proxy>, String> {
             }
             ClashProxyYamlInput::Unknown => {
                 // Skip unknown proxy types
+                warn!("Skipping unknown Clash proxy type at index {}", index);
             }
         }
     }
 
     Ok(proxies)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_clash_yaml;
+    use crate::models::proxy::ProxyType;
+
+    #[test]
+    fn parses_vless_with_string_port() {
+        let yaml = r#"
+proxies:
+  - name: jp-vless
+    type: vless
+    server: example.com
+    port: '443'
+    uuid: 123-123-123-123-123
+    flow: xtls-rprx-vision
+    tls: true
+    udp: true
+    servername: example.com
+"#;
+
+        let proxies = parse_clash_yaml(yaml).expect("clash yaml should parse");
+        assert_eq!(proxies.len(), 1);
+        assert_eq!(proxies[0].proxy_type, ProxyType::Vless);
+        assert_eq!(proxies[0].remark, "jp-vless");
+        assert_eq!(proxies[0].port, 443);
+    }
+
+    #[test]
+    fn keeps_valid_proxies_when_one_proxy_is_invalid() {
+        let yaml = r#"
+proxies:
+  - name: broken-vless
+    type: vless
+    server: example.com
+    port: abc
+    uuid: 123-123-123-123-123
+  - name: us-trojan
+    type: trojan
+    server: example.com
+    port: 443
+    password: 123-123-123-123-123
+"#;
+
+        let proxies = parse_clash_yaml(yaml).expect("clash yaml should parse");
+        assert_eq!(proxies.len(), 1);
+        assert_eq!(proxies[0].proxy_type, ProxyType::Trojan);
+        assert_eq!(proxies[0].remark, "us-trojan");
+    }
 }
