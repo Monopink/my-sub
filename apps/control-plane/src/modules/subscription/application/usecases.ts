@@ -78,10 +78,31 @@ export class SubscriptionService {
     return this.repository.getAlias(alias);
   }
 
+  createAlias(
+    input: Omit<AliasMapping, "updatedAt"> & { updatedAt?: string }
+  ): Promise<AliasMapping> {
+    return this.validateAndCreateAlias(input);
+  }
+
   upsertAlias(
     input: Omit<AliasMapping, "updatedAt"> & { updatedAt?: string }
   ): Promise<AliasMapping> {
     return this.validateAndUpsertAlias(input);
+  }
+
+  private async validateAndCreateAlias(
+    input: Omit<AliasMapping, "updatedAt"> & { updatedAt?: string }
+  ): Promise<AliasMapping> {
+    assertAlias(input.alias);
+    const existing = await this.repository.getAlias(input.alias);
+    if (existing) {
+      throw new Error(`alias already exists: ${input.alias}`);
+    }
+    const profile = await this.repository.getProfile(input.profileId);
+    if (!profile) {
+      throw new Error(`profile not found: ${input.profileId}`);
+    }
+    return this.repository.upsertAlias(input);
   }
 
   private async validateAndUpsertAlias(

@@ -25,9 +25,13 @@ export async function POST(request: Request) {
     }
     const body = (await request.json()) as Omit<AliasMapping, "updatedAt">;
     const svc = getSubscriptionService();
-    const saved = await svc.upsertAlias(body);
+    const saved = await svc.createAlias(body);
     return NextResponse.json(saved, { status: 201 });
   } catch (error) {
-    return fail("failed to create/update alias", 400, String(error));
+    const message = String(error);
+    if (message.includes("alias already exists:")) {
+      return fail("alias already exists", 409, message);
+    }
+    return fail("failed to create alias", 400, message);
   }
 }
