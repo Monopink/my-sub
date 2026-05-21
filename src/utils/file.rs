@@ -1,5 +1,6 @@
+use crate::resources::{load_text, ResourceLoadOptions};
 use crate::settings::Settings;
-use crate::utils::http::{parse_proxy, web_get_async};
+use crate::utils::http::parse_proxy;
 
 // Import platform-specific implementations
 #[cfg(not(target_arch = "wasm32"))]
@@ -26,19 +27,16 @@ pub use platform::*;
 /// * `Ok(String)` - The content
 /// * `Err(String)` - Error message if loading failed
 pub async fn load_content_async(path: &str) -> Result<String, String> {
-    if path.starts_with("http://") || path.starts_with("https://") {
-        // It's a URL, use HTTP client
-        match web_get_async(path, &parse_proxy(&Settings::current().proxy_config), None).await {
-            Ok(response) => Ok(response.body),
-            Err(e) => Err(format!("Failed to read file from URL: {}", e)),
-        }
-    } else if file_exists(path).await {
-        // It's a file, read it asynchronously
-        match read_file_async(path).await {
-            Ok(data) => Ok(data),
-            Err(e) => Err(format!("Failed to read file: {}", e)),
-        }
-    } else {
-        Err(format!("Path not found: {}", path))
-    }
+    let proxy_config = {
+        let settings = Settings::current();
+        settings.proxy_config.clone()
+    };
+    let proxy = parse_proxy(&proxy_config);
+    let options = ResourceLoadOptions {
+        proxy: Some(&proxy),
+        scope_base_path: None,
+    };
+    load_text(path, &options)
+        .await
+        .map_err(|e| format!("Failed to load content from {}: {}", path, e))
 }

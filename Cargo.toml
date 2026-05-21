@@ -46,6 +46,7 @@ thiserror = "2.0.12"
 serde_bytes = "0.11.17"
 anyhow = "1.0.97"
 case_insensitive_string = "0.2.9"
+include_dir = "0.7.4"
 
 # Re-add WASM-specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]

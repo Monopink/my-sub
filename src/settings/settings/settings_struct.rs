@@ -20,11 +20,10 @@ use crate::models::ruleset::RulesetContent;
 use crate::models::RegexMatchConfig;
 use crate::models::RegexMatchConfigs;
 use crate::models::RulesetConfig;
+use crate::resources::{load_text, ResourceLoadOptions};
 use crate::utils::file::copy_file;
 use crate::utils::file_exists;
-use crate::utils::file_get_async;
 use crate::utils::http::ProxyConfig;
-use crate::utils::web_get_async;
 
 // For wasm32 targets, implement a mock RwLock that works in single-threaded
 // environments
@@ -471,15 +470,12 @@ impl Settings {
 
     /// Load settings from file or URL asynchronously
     pub async fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut _content = String::new();
-
-        // Try to load the content from file or URL
-        if path.starts_with("http://") || path.starts_with("https://") {
-            let response = web_get_async(path, &ProxyConfig::default(), None).await?;
-            _content = response.body;
-        } else {
-            _content = file_get_async(path, None).await?;
-        }
+        let default_proxy = ProxyConfig::default();
+        let options = ResourceLoadOptions {
+            proxy: Some(&default_proxy),
+            scope_base_path: None,
+        };
+        let _content = load_text(path, &options).await?;
 
         // Load from content and set the path
         let mut settings = Settings::load_from_content(&_content, path).await?;
