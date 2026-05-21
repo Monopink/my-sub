@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { Source } from "@/modules/subscription/domain/entities";
@@ -10,7 +9,12 @@ import {
   getSource,
   updateSource,
 } from "@/app/admin/_lib/api";
-import { InlineError, InlineSuccess, PageTitle } from "@/app/admin/_components/common";
+import {
+  InlineError,
+  InlineSuccess,
+  LinkButton,
+  PageTitle,
+} from "@/app/admin/_components/common";
 import {
   SourceForm,
   type SourceFormValue,
@@ -78,12 +82,9 @@ export default function EditSourcePage() {
               "Loading..."
             )}
           </CardTitle>
-          <Link
-            href="/admin/sources"
-            className="inline-flex h-9 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]"
-          >
+          <LinkButton href="/admin/sources" variant="outline">
             Back
-          </Link>
+          </LinkButton>
         </CardHeader>
         <CardContent>
           {source ? (

@@ -160,7 +160,6 @@ export default function AliasesPage() {
             type="button"
             onClick={openCreate}
             disabled={profiles.length === 0}
-            className="text-white"
           >
             New Alias
           </Button>

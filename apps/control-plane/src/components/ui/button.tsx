@@ -1,11 +1,13 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+export type ButtonVariant = "default" | "outline" | "destructive" | "ghost";
+
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "default" | "outline" | "destructive" | "ghost";
+  variant?: ButtonVariant;
 };
 
-const variantClass: Record<NonNullable<ButtonProps["variant"]>, string> = {
+export const buttonVariantClass: Record<ButtonVariant, string> = {
   default:
     "bg-[var(--primary)] text-[var(--primary-foreground)] hover:brightness-110",
   outline:
@@ -23,7 +25,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         type={type}
         className={cn(
           "inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
-          variantClass[variant],
+          buttonVariantClass[variant],
           className
         )}
         {...props}
