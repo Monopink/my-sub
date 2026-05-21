@@ -4,7 +4,7 @@ use serde_yaml::Value;
 /// Represents a Clash configuration input structure
 #[derive(Debug, Clone, Deserialize)]
 pub struct ClashYamlInput {
-    #[serde(default)]
+    #[serde(default, alias = "Proxy", alias = "Proxies")]
     pub proxies: Vec<Value>,
 }
 
