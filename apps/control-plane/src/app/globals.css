@@ -49,6 +49,8 @@ body {
   font-family: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-a {
-  color: inherit;
+@layer base {
+  a:not([class]) {
+    color: inherit;
+  }
 }

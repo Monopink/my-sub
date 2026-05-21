@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { Profile, Source, Template } from "@/modules/subscription/domain/entities";
@@ -12,7 +11,12 @@ import {
   listTemplates,
   updateProfile,
 } from "@/app/admin/_lib/api";
-import { InlineError, InlineSuccess, PageTitle } from "@/app/admin/_components/common";
+import {
+  InlineError,
+  InlineSuccess,
+  LinkButton,
+  PageTitle,
+} from "@/app/admin/_components/common";
 import {
   buildOrderedSourceIdsFromForm,
   buildConverterOptionsFromForm,
@@ -88,12 +92,9 @@ export default function EditProfilePage() {
               "Loading..."
             )}
           </CardTitle>
-          <Link
-            href="/admin/profiles"
-            className="inline-flex h-9 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]"
-          >
+          <LinkButton href="/admin/profiles" variant="outline">
             Back
-          </Link>
+          </LinkButton>
         </CardHeader>
         <CardContent>
           {profile ? (

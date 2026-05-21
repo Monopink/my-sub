@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Template } from "@/modules/subscription/domain/entities";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,7 @@ import {
 } from "@/app/admin/_lib/api";
 import {
   InlineError,
+  LinkButton,
   InlineSuccess,
   PageTitle,
 } from "@/app/admin/_components/common";
@@ -68,12 +68,9 @@ export default function TemplatesPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Template List</CardTitle>
-          <Link
-            href="/admin/templates/new"
-            className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-white transition hover:brightness-110"
-          >
+          <LinkButton href="/admin/templates/new">
             New Template
-          </Link>
+          </LinkButton>
         </CardHeader>
         <CardContent>
           {loading ? <p className="text-sm">Loading...</p> : null}
@@ -100,12 +97,12 @@ export default function TemplatesPage() {
                     <TD>{new Date(item.updatedAt).toLocaleString()}</TD>
                     <TD>
                       <div className="flex gap-2">
-                        <Link
+                        <LinkButton
                           href={`/admin/templates/${encodeURIComponent(item.id)}/edit`}
-                          className="inline-flex h-9 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--muted)]"
+                          variant="outline"
                         >
                           Edit
-                        </Link>
+                        </LinkButton>
                         <Button
                           variant="destructive"
                           onClick={() => onDelete(item.id)}
