@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use super::super::de::deserialize_port;
 
 use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;
@@ -11,6 +12,7 @@ use crate::utils::tribool::OptionSetExt;
 pub struct ClashInputHysteria {
     name: String,
     server: String,
+    #[serde(deserialize_with = "deserialize_port")]
     port: u16,
     #[serde(default)]
     ports: Option<String>,
@@ -222,3 +224,4 @@ impl Into<Proxy> for ClashInputHysteria {
         proxy
     }
 }
+

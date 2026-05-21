@@ -1,5 +1,6 @@
 
 use serde::Deserialize;
+use super::super::de::deserialize_port;
 
 use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;
@@ -11,6 +12,7 @@ use crate::utils::tribool::OptionSetExt;
 pub struct ClashInputSocks5 {
     name: String,
     server: String,
+    #[serde(deserialize_with = "deserialize_port")]
     port: u16,
     #[serde(default)]
     username: Option<String>,
@@ -74,3 +76,4 @@ impl Into<Proxy> for ClashInputSocks5 {
         proxy
     }
 }
+

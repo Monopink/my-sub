@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
 use serde::Deserialize;
+use super::super::de::deserialize_port;
+use super::super::de::deserialize_optional_string_list;
 
 use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;
@@ -13,6 +15,7 @@ use crate::utils::tribool::OptionSetExt;
 pub struct ClashInputHysteria2 {
     name: String,
     server: String,
+    #[serde(deserialize_with = "deserialize_port")]
     port: u16,
     password: String,
     #[serde(default)]
@@ -29,8 +32,8 @@ pub struct ClashInputHysteria2 {
     obfs_password: Option<String>,
     #[serde(default)]
     fingerprint: Option<String>,
-    #[serde(default)]
-    alpn: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_string_list")]
+    alpn: Option<Vec<String>>,
     #[serde(default)]
     ca: Option<String>,
     #[serde(alias = "ca-str", default)]
@@ -94,8 +97,8 @@ impl ClashInputHysteria2 {
         self.fingerprint.as_deref()
     }
 
-    pub fn alpn(&self) -> Option<&str> {
-        self.alpn.as_deref()
+    pub fn alpn(&self) -> Option<&Vec<String>> {
+        self.alpn.as_ref()
     }
 
     pub fn ca(&self) -> Option<&str> {
@@ -158,13 +161,11 @@ impl Into<Proxy> for ClashInputHysteria2 {
         // Set TLS related fields
         proxy.fingerprint = self.fingerprint;
 
-        // Handle alpn as a comma-separated string to HashSet
-        if let Some(alpn_value) = self.alpn {
+        // Handle ALPN values from either YAML list or comma-separated string.
+        if let Some(alpn_values) = self.alpn {
             let mut alpn_set = HashSet::new();
-            for value in alpn_value.split(',').map(|s| s.trim().to_string()) {
-                if !value.is_empty() {
-                    alpn_set.insert(value);
-                }
+            for value in alpn_values {
+                alpn_set.insert(value);
             }
             proxy.alpn = alpn_set;
         }
@@ -184,3 +185,4 @@ impl Into<Proxy> for ClashInputHysteria2 {
         proxy
     }
 }
+

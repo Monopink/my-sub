@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Deserialize;
+use super::super::de::deserialize_port;
 
 use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;
@@ -13,6 +14,7 @@ use crate::models::proxy_node::vless::VlessProxy;
 pub struct ClashInputVLess {
     name: String,
     server: String,
+    #[serde(deserialize_with = "deserialize_port")]
     port: u16,
     uuid: String,
     #[serde(default)]
@@ -291,3 +293,4 @@ impl Into<Proxy> for ClashInputVLess {
         proxy
     }
 }
+

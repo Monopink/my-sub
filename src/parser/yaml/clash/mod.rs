@@ -1,6 +1,7 @@
 mod clash_input;
 mod clash_parsers;
 mod clash_proxy_types;
+mod de;
 mod input_proxy_types;
 
 pub use clash_input::ClashYamlInput;

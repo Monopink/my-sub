@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use super::super::de::deserialize_port;
 
 use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;
@@ -11,6 +12,7 @@ use crate::models::proxy_node::combined::CombinedProxy;
 pub struct ClashInputAnyTLS {
     name: String,
     server: String,
+    #[serde(deserialize_with = "deserialize_port")]
     port: u16,
     password: String,
     #[serde(default)]
@@ -63,3 +65,4 @@ impl Into<Proxy> for ClashInputAnyTLS {
         proxy
     }
 }
+
