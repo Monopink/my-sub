@@ -14,10 +14,10 @@ use super::input_proxy_types::{
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum ClashProxyYamlInput {
-    #[serde(rename = "ss")]
+    #[serde(rename = "ss", alias = "shadowsocks")]
     Shadowsocks(ClashInputShadowsocks),
 
-    #[serde(rename = "ssr")]
+    #[serde(rename = "ssr", alias = "shadowsocksr")]
     ShadowsocksR(ClashInputShadowsocksR),
 
     #[serde(rename = "vmess")]
@@ -29,7 +29,7 @@ pub enum ClashProxyYamlInput {
     #[serde(rename = "http")]
     Http(ClashInputHttp),
 
-    #[serde(rename = "socks5")]
+    #[serde(rename = "socks5", alias = "socks")]
     Socks5(ClashInputSocks5),
 
     #[serde(rename = "snell")]
