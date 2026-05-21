@@ -2,11 +2,12 @@ use crate::models::Proxy;
 use crate::parser::explodes::*;
 use crate::parser::infoparser::{get_sub_info_from_nodes, get_sub_info_from_ssd};
 use crate::parser::parse_settings::ParseSettings;
+use crate::resources::{load_text, parse_location, resource_exists, ResourceLoadOptions};
 use crate::utils::http::get_sub_info_from_header;
 use crate::utils::matcher::{apply_matcher, reg_find};
 use crate::utils::network::is_link;
 use crate::utils::url::url_decode;
-use crate::utils::{file_exists, file_get_async, web_get_async};
+use crate::utils::web_get_async;
 use log::warn;
 
 /// Equivalent to ConfType enum in C++
@@ -15,6 +16,7 @@ pub enum ConfType {
     SOCKS,
     HTTP,
     SUB,
+    Embedded,
     Netch,
     Local,
     Unknown,
@@ -87,11 +89,19 @@ pub async fn add_nodes(
         ConfType::SUB
     } else if link.starts_with("Netch://") {
         ConfType::Netch
-    } else if file_exists(&link).await {
-        ConfType::Local
     } else {
-        // Default to Unknown for direct proxy links or invalid links
-        ConfType::Unknown
+        match parse_location(&link) {
+            Ok(crate::resources::ResourceLocation::Url(_)) => ConfType::SUB,
+            Ok(crate::resources::ResourceLocation::Embedded(_)) => ConfType::Embedded,
+            Ok(crate::resources::ResourceLocation::LocalPath(_)) => {
+                if resource_exists(&link, None).await {
+                    ConfType::Local
+                } else {
+                    ConfType::Unknown
+                }
+            }
+            Err(_) => ConfType::Unknown,
+        }
     };
 
     match link_type {
@@ -174,7 +184,11 @@ pub async fn add_nodes(
             }
 
             // Read and parse local file
-            let result = explode_conf(&link, &mut nodes).await;
+            let content = match explode_conf(&link).await {
+                Ok(content) => content,
+                Err(e) => return Err(format!("Failed to load local file: {}", e)),
+            };
+            let result = explode_conf_content(&content, &mut nodes);
             if result > 0 {
                 // The rest is similar to SUB case
                 // Get subscription info
@@ -214,6 +228,49 @@ pub async fn add_nodes(
                 Err("Invalid configuration file".to_string())
             }
         }
+        ConfType::Embedded => {
+            let result = explode_conf(&link).await.map(|content| {
+                let mut extracted = Vec::new();
+                let parse_count = explode_conf_content(&content, &mut extracted);
+                (parse_count, extracted)
+            });
+
+            let (parse_count, mut parsed_nodes) = match result {
+                Ok((count, parsed_nodes)) => (count, parsed_nodes),
+                Err(e) => return Err(format!("Failed to load embedded resource: {}", e)),
+            };
+
+            if parse_count <= 0 {
+                return Err("Invalid embedded configuration".to_string());
+            }
+
+            if let (Some(stream_rules_unwrapped), Some(time_rules_unwrapped)) =
+                (stream_rules, time_rules)
+            {
+                if let Some(info) =
+                    get_sub_info_from_nodes(&parsed_nodes, stream_rules_unwrapped, time_rules_unwrapped)
+                {
+                    parse_settings.sub_info = Some(info);
+                }
+            }
+
+            filter_nodes(
+                &mut parsed_nodes,
+                exclude_remarks,
+                include_remarks,
+                group_id,
+            );
+
+            for node in &mut parsed_nodes {
+                node.group_id = group_id;
+                if !custom_group.is_empty() {
+                    node.group = custom_group.clone();
+                }
+            }
+
+            all_nodes.append(&mut parsed_nodes);
+            Ok(())
+        }
         _ => {
             // Handle direct link to a single proxy
             if explode(&link, &mut node) {
@@ -249,12 +306,14 @@ fn get_url_arg(url: &str, arg_name: &str) -> Option<String> {
 
 /// Parses a configuration file into a vector of Proxy objects
 /// Returns the number of proxies parsed
-async fn explode_conf(path: &str, nodes: &mut Vec<Proxy>) -> i32 {
-    // TODO: 安全问题，但是旧版subconverter也有……
-    match file_get_async(path, None).await {
-        Ok(content) => explode_conf_content(&content, nodes),
-        Err(_) => 0,
-    }
+async fn explode_conf(path: &str) -> Result<String, String> {
+    let options = ResourceLoadOptions {
+        proxy: None,
+        scope_base_path: None,
+    };
+    load_text(path, &options)
+        .await
+        .map_err(|e| format!("failed to load {}: {}", path, e))
 }
 
 /// Filters nodes based on include/exclude rules

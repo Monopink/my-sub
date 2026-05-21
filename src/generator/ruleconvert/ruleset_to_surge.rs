@@ -3,11 +3,11 @@
 //! This module provides functionality to convert rulesets to Surge format.
 
 use crate::models::RulesetContent;
+use crate::resources::{is_url_reference, resource_exists};
 use crate::utils::base64::url_safe_base64_encode;
 use crate::utils::ini_reader::IniReader;
-use crate::utils::network::is_link;
 use crate::utils::string::{find_str, starts_with};
-use crate::utils::{file_exists, trim};
+use crate::utils::trim;
 use crate::Settings;
 use lazy_static::lazy_static;
 use log::warn;
@@ -187,7 +187,7 @@ pub async fn ruleset_to_surge(
             // Handle file or URL paths
             if surge_ver == -1
                 && ruleset.rule_type == crate::models::RulesetType::Quanx
-                && is_link(rule_path)
+                && is_url_reference(rule_path)
             {
                 let str_line = format!(
                     "{}, tag={}, force-policy={}, enabled=true",
@@ -197,7 +197,7 @@ pub async fn ruleset_to_surge(
                 continue;
             }
 
-            if file_exists(rule_path).await {
+            if !is_url_reference(rule_path) && resource_exists(rule_path, None).await {
                 if surge_ver > 2 && !remote_path_prefix.is_empty() {
                     let mut str_line = format!(
                         "RULE-SET,{}/getruleset?type=1&url={},{}",
@@ -234,7 +234,7 @@ pub async fn ruleset_to_surge(
                     let _ = base_rule.set("Remote Rule", "{NONAME}", &str_line);
                     continue;
                 }
-            } else if is_link(rule_path) {
+            } else if is_url_reference(rule_path) {
                 if surge_ver > 2 {
                     if ruleset.rule_type != crate::models::RulesetType::Surge {
                         if !remote_path_prefix.is_empty() {

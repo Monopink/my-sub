@@ -1,4 +1,5 @@
-use crate::utils::{file_exists, file_get_async, http::ProxyConfig};
+use crate::resources::{load_text, ResourceLoadOptions};
+use crate::utils::http::ProxyConfig;
 
 use super::toml_deserializer::ImportableInToml;
 
@@ -25,20 +26,16 @@ pub async fn import_toml_items<T: ImportableInToml>(
         let path = item.get_import_path().unwrap();
         log::info!("Trying to import items from {}", path);
 
-        let content = if path.starts_with("http://") || path.starts_with("https://") {
-            // Fetch from URL
-            let response = crate::utils::http::web_get_async(&path, &proxy_config, None).await?;
-            response.body
-        } else if file_exists(&path).await {
-            // Read from file
-            if scope_limit {
-                file_get_async(&path, Some(base_path)).await?
-            } else {
-                file_get_async(&path, None).await?
+        let options = ResourceLoadOptions {
+            proxy: Some(proxy_config),
+            scope_base_path: if scope_limit { Some(base_path) } else { None },
+        };
+        let content = match load_text(&path, &options).await {
+            Ok(content) => content,
+            Err(e) => {
+                log::error!("Failed to import from {}: {}", path, e);
+                return Err(Box::new(e));
             }
-        } else {
-            log::error!("File not found or not a valid URL: {}", path);
-            return Err(format!("File not found or not a valid URL: {}", path).into());
         };
 
         if content.is_empty() {

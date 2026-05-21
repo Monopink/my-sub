@@ -1,13 +1,11 @@
 #[cfg(not(target_arch = "wasm32"))]
-use futures::future::{join_all, BoxFuture};
+use futures::future::{join_all, LocalBoxFuture};
 use log::{debug, info, warn}; // Import for parallel execution
 
 use crate::models::ruleset::{get_ruleset_type_from_url, RulesetContent, RulesetType};
 use crate::models::RulesetConfig;
-use crate::rulesets::embedded_rules::{get_embedded_ruleset, is_embedded_ruleset_url};
-use crate::utils::file::read_file_async;
-use crate::utils::file_exists;
-use crate::utils::http::{parse_proxy, web_get_content_async, ProxyConfig};
+use crate::resources::{load_text, ResourceLoadOptions};
+use crate::utils::http::{parse_proxy, ProxyConfig};
 use crate::utils::memory_cache;
 use crate::Settings;
 
@@ -38,47 +36,13 @@ pub async fn fetch_ruleset(
         }
     }
 
-    if is_embedded_ruleset_url(url) {
-        if let Some(content) = get_embedded_ruleset(url) {
-            let content = content.to_string();
-            if cache_timeout > 0 {
-                if let Err(e) = memory_cache::store(url, &content) {
-                    warn!("Failed to store embedded ruleset in cache: {}", e);
-                }
-            }
-            return Ok(content);
-        }
-        return Err(format!("Embedded ruleset not found: {}", url));
-    }
-
-    // If it's a file on disk, read it directly using async file read
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        if !file_exists(url).await {
-            return Err(format!("Rule file not found: {}", url));
-        }
-
-        // Read rule file asynchronously
-        match read_file_async(url).await {
-            Ok(content) => {
-                info!("Loaded ruleset from file: {}", url);
-
-                // Store in memory cache if caching is enabled
-                if cache_timeout > 0 {
-                    if let Err(e) = memory_cache::store(url, &content) {
-                        warn!("Failed to store ruleset in cache: {}", e);
-                    }
-                }
-
-                return Ok(content);
-            }
-            Err(e) => return Err(format!("Error reading rule file: {}", e)),
-        }
-    }
-
-    // For URLs, fetch content and cache
-    match fetch_from_url(url, proxy).await {
+    let options = ResourceLoadOptions {
+        proxy: Some(proxy),
+        scope_base_path: None,
+    };
+    match load_text(url, &options).await {
         Ok(content) => {
-            // Store in memory cache if caching is enabled
+            info!("Loaded ruleset from {}", url);
             if cache_timeout > 0 {
                 if let Err(e) = memory_cache::store(url, &content) {
                     warn!("Failed to store ruleset in cache: {}", e);
@@ -86,16 +50,10 @@ pub async fn fetch_ruleset(
             }
             Ok(content)
         }
-        Err(e) => Err(e),
-    }
-}
-
-/// Helper function to fetch content from URL asynchronously
-async fn fetch_from_url(url: &str, proxy: &ProxyConfig) -> Result<String, String> {
-    debug!("Fetching ruleset from URL: {}", url);
-    match web_get_content_async(url, proxy, None).await {
-        Ok(content) => Ok(content),
-        Err(e) => Err(format!("Failed to fetch ruleset from URL {}: {}", url, e)),
+        Err(err) => {
+            // Keep a stable and easy-to-grep error prefix for operational debugging.
+            Err(format!("Failed to load ruleset {}: {}", url, err))
+        }
     }
 }
 
@@ -117,7 +75,7 @@ pub async fn refresh_rulesets(
     let proxy = parse_proxy(&settings.proxy_ruleset);
 
     // Create a vector of boxed futures for parallel ruleset fetching
-    let mut fetch_futures: Vec<BoxFuture<'static, FetchResult>> = Vec::new();
+    let mut fetch_futures: Vec<LocalBoxFuture<'static, FetchResult>> = Vec::new();
 
     // Prepare futures for all rulesets (inline handled separately later)
     for ruleset_config in ruleset_list {
@@ -428,7 +386,7 @@ mod tests {
             assert!(result_no_cache.is_err());
             assert!(result_no_cache
                 .unwrap_err()
-                .contains("Failed to fetch ruleset from URL"));
+                .contains("Failed to load ruleset"));
 
             // Clean up
             memory_cache::remove(test_url);

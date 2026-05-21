@@ -4,6 +4,7 @@ pub mod generator;
 pub mod interfaces;
 pub mod models;
 pub mod parser;
+pub mod resources;
 pub mod rulesets;
 pub mod settings;
 pub mod template;
