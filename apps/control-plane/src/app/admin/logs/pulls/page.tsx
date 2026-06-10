@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { PullLog } from "@/modules/subscription/domain/entities";
+import type { Profile, PullLog } from "@/modules/subscription/domain/entities";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { TD, TH, TBody, THead, TR, Table } from "@/components/ui/table";
 import {
   formatApiError,
+  listProfiles,
   listPullLogs,
   type PullLogsResponse,
 } from "@/app/admin/_lib/api";
@@ -43,6 +44,7 @@ const DEFAULT_FORM: FormValue = {
 };
 
 export default function PullLogsPage() {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PullLogsResponse | null>(null);
@@ -54,6 +56,34 @@ export default function PullLogsPage() {
   });
 
   const activeFilter = form.watch();
+
+  const profileNameById = useMemo(
+    () => new Map(profiles.map((item) => [item.id, item.name])),
+    [profiles]
+  );
+
+  useEffect(() => {
+    let alive = true;
+
+    async function loadProfiles() {
+      try {
+        const items = await listProfiles();
+        if (alive) {
+          setProfiles(items);
+        }
+      } catch (err) {
+        if (alive) {
+          setError(formatApiError(err));
+        }
+      }
+    }
+
+    void loadProfiles();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function load(nextOffset = 0) {
     try {
@@ -212,7 +242,7 @@ export default function PullLogsPage() {
                   <TR key={`${item.ts}-${item.alias}-${index}`}>
                     <TD>{new Date(item.ts).toLocaleString()}</TD>
                     <TD>{item.alias}</TD>
-                    <TD>{item.profileId}</TD>
+                    <TD>{profileNameById.get(item.profileId) ?? item.profileId}</TD>
                     <TD>{item.status}</TD>
                     <TD>{item.latencyMs} ms</TD>
                     <TD>{item.resultBytes}</TD>
