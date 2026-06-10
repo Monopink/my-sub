@@ -51,12 +51,12 @@ include_dir = "0.7.4"
 # Re-add WASM-specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
+wasm-bindgen = "0.2.123"
+wasm-bindgen-futures = "0.4.73"
 serde-wasm-bindgen = "0.6.5"
 tokio = { version = "1.43.0", features = ["rt", "sync", "io-util"] }
-js-sys = "0.3"
-web-sys = { version = "0.3", features = [
+js-sys = "0.3.100"
+web-sys = { version = "0.3.100", features = [
     "Headers",
     "Request",
     "RequestInit",
