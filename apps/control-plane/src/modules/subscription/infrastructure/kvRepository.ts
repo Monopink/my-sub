@@ -22,19 +22,22 @@ import {
   kvSetJson,
 } from "@/modules/subscription/infrastructure/kvClient";
 
-function assertTemplateRefUrl(ref: string): string {
+function assertTemplateRef(ref: string): string {
   const normalized = ref.trim();
   if (!normalized) {
     throw new Error("template.ref is required");
+  }
+  if (normalized.startsWith("embedded://base/")) {
+    return normalized;
   }
   let parsed: URL;
   try {
     parsed = new URL(normalized);
   } catch {
-    throw new Error("template.ref must be a valid absolute URL");
+    throw new Error("template.ref must be a valid absolute URL or embedded://base/... reference");
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("template.ref must use http or https");
+    throw new Error("template.ref must use http, https, or embedded://base/...");
   }
   return normalized;
 }
@@ -149,7 +152,7 @@ export class KvSubscriptionRepository implements SubscriptionRepository {
   async upsertTemplate(input: Partial<Template> & { id: string }): Promise<Template> {
     assertId(input.id, "template.id");
     const current = await this.getTemplate(input.id);
-    const resolvedRef = assertTemplateRefUrl(input.ref ?? current?.ref ?? "");
+    const resolvedRef = assertTemplateRef(input.ref ?? current?.ref ?? "");
     const merged: Template = {
       id: input.id,
       name: input.name ?? current?.name ?? input.id,

@@ -53,13 +53,18 @@ export function TemplateForm({
         <Input
           id="ref"
           {...form.register("ref")}
-          placeholder="https://raw.githubusercontent.com/Monopink/my-sub/main/base/config/main.ini"
+          placeholder="embedded://base/config/main.ini"
         />
         <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-          Ref must be an absolute HTTP(S) URL to a plain-text template file.
+          Ref supports absolute HTTP(S) URLs or embedded internal files under
+          <code> embedded://base/...</code>.
         </p>
         <p className="text-xs text-[var(--muted-foreground)]">
-          Clash example:{" "}
+          Embedded example:{" "}
+          <code>embedded://base/config/main.ini</code>
+        </p>
+        <p className="text-xs text-[var(--muted-foreground)]">
+          HTTP example:{" "}
           <code>
             https://raw.githubusercontent.com/Monopink/my-sub/main/base/config/main.ini
           </code>

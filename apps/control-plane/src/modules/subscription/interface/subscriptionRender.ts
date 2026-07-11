@@ -113,19 +113,22 @@ function resolveSourceUserAgent(target: TargetType): string {
   return "clash.meta";
 }
 
-function resolveTemplateUrl(templateRefRaw: string): string {
+function resolveTemplateRef(templateRefRaw: string): string {
   const templateRef = templateRefRaw.trim();
   if (!templateRef) {
     throw new Error("template.ref is required");
+  }
+  if (templateRef.startsWith("embedded://base/")) {
+    return templateRef;
   }
   let parsed: URL;
   try {
     parsed = new URL(templateRef);
   } catch {
-    throw new Error("template.ref must be a valid absolute URL");
+    throw new Error("template.ref must be a valid absolute URL or embedded://base/... reference");
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("template.ref must use http or https");
+    throw new Error("template.ref must use http, https, or embedded://base/...");
   }
   return templateRef;
 }
@@ -139,7 +142,7 @@ function buildConverterUrl(
   const upstream = new URL("https://converter.internal/sub");
   upstream.searchParams.set("target", profile.target);
   upstream.searchParams.set("url", sourceUrls.join("|"));
-  upstream.searchParams.set("config", resolveTemplateUrl(template.ref));
+  upstream.searchParams.set("config", resolveTemplateRef(template.ref));
 
   const options = profile.converterOptions;
   const setStringOption = (key: string, value: string | undefined) => {
