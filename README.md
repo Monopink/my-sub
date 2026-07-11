@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apps/control-plane/public/brand-icon.svg" alt="MySub" width="72" height="72" />
+</p>
+
 # MySub
 
 Subscription aggregation service for multi-device use, based on `subconverter-rs`.

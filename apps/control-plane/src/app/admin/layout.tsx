@@ -38,8 +38,18 @@ export default async function AdminLayout({
     <div className="min-h-screen">
       <header className="border-b border-[var(--border)] bg-[var(--card)]">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <Link href="/admin/aliases" className="text-base font-semibold tracking-tight">
-            MySub
+          <Link
+            href="/admin/aliases"
+            className="flex items-center gap-2 text-base font-semibold tracking-tight"
+          >
+            <img
+              src="/brand-icon.svg"
+              alt="MySub"
+              width="24"
+              height="24"
+              className="h-6 w-6 shrink-0"
+            />
+            <span>MySub</span>
           </Link>
           <AdminNav items={NAV_ITEMS} />
         </div>
