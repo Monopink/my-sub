@@ -4,4 +4,4 @@ compatibility_date = "2026-05-12"
 compatibility_flags = ["nodejs_compat"]
 
 [build]
-command = "cargo install -q worker-build && worker-build --release"
+command = "cargo install -q --locked worker-build --version 0.8.3 && worker-build --release"

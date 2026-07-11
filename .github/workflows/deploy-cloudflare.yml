@@ -55,6 +55,9 @@ jobs:
         working-directory: workers/converter
         run: npm install --no-audit --no-fund
 
+      - name: Clear worker-build Cache
+        run: rm -rf ~/.cache/worker-build
+
       - name: Deploy Converter
         working-directory: workers/converter
         env:
